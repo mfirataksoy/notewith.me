@@ -31,6 +31,9 @@ npm start        # Express serves the API on /api and the built app on :2500
 ```
 For hot reload run `npm start` and `npm run dev` side by side; the dev server proxies `/api` to :2500.
 
-### Deploy (Railway)
-One web service running `npm run build` + `npm start`, plus a MongoDB service.
-Set `MONGODB_URI=${{MongoDB.MONGO_URL}}` on the web service.
+### Deploy (Netlify + MongoDB Atlas)
+`netlify.toml` builds the Vue app into `dist` and runs the API as a Netlify Function
+(`netlify/functions/api.js`, which wraps `app.js`); `/api/*` is rewritten to it.
+Set `MONGODB_URI` (an Atlas connection string) in the site's environment variables.
+
+`npm start` still runs everything as one Express server, e.g. for Railway/Render.
