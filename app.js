@@ -15,7 +15,7 @@ let connection;
 function connect() {
   if (!connection) {
     connection = mongoose
-      .connect(db, { dbName: "notewithme" })
+      .connect(db, { dbName: "notewithme", serverSelectionTimeoutMS: 8000 })
       .catch((error) => {
         connection = undefined;
         throw error;
