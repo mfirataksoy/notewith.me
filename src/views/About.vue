@@ -2,41 +2,6 @@
   <div>
     <v-app>
       <v-container>
-        <v-dialog v-model="passwordDialog" max-width="290">
-          <v-card>
-            <v-card-title class="headline">
-              Add password to your notepad
-            </v-card-title>
-
-            <v-card-text>
-              <v-text-field
-                v-model="password"
-                :type="show1 ? 'text' : 'password'"
-                :rules="rules"
-              >
-              </v-text-field>
-            </v-card-text>
-
-            <v-card-actions>
-              <v-spacer></v-spacer>
-              <v-btn
-                color="green darken-1"
-                text
-                @click="passwordDialog = false"
-              >
-                Close
-              </v-btn>
-
-              <v-btn
-                color="green darken-1"
-                text
-                @click="updatePassword = false"
-              >
-                Agree
-              </v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
         <v-snackbar
           v-model="dialog"
           top
@@ -47,7 +12,7 @@
           {{ snackText }}
 
           <template v-slot:action="{ attrs }">
-            <v-btn :color="gray" text v-bind="attrs" @click="dialog = false">
+            <v-btn color="gray" text v-bind="attrs" @click="dialog = false">
               Close
             </v-btn>
           </template>
@@ -65,15 +30,6 @@
             v-clipboard:error="onError"
           >
             <v-icon>mdi-clipboard-edit-outline</v-icon>
-          </v-btn>
-          <v-btn
-            class="float-right"
-            @click="passwordDialog = true"
-            text
-            icon
-            color="white lighten-2"
-          >
-            <v-icon>mdi-lock</v-icon>
           </v-btn>
         </v-alert>
         <div class="editor">
@@ -103,23 +59,17 @@ export default {
   components: { Navbar, Footer },
   data() {
     return {
-      name: "Bedo",
-      mainUrl: "https://note-take27.herokuapp.com/",
+      mainUrl: "/api/",
       typeOfAlert: "info",
       dialog: false,
-      alertText: "",
+      alertText: "Start typing, your notes are saved automatically",
       snackText: "",
       snackbar: false,
       notepadsName: "",
       timeout: 2000,
       notepadsText: "",
       timer: undefined,
-      password: "",
-      passwordDialog: false,
-      rules: [
-        (value) => !!value || "Required.",
-        (value) => (value || "").length <= 10 || "Max 10 characters",
-      ],
+      savedText: "",
       editorOption: {
         theme: "snow",
         placeholder: "Click here to start typing",
@@ -131,7 +81,7 @@ export default {
       return this.$route.params.id;
     },
     copyClipBoard() {
-      return "https://notewith.me/" + this.notepadsNameFromRequest;
+      return window.location.origin + "/" + this.notepadsNameFromRequest;
     },
   },
   watch: {
@@ -148,47 +98,31 @@ export default {
     async fetchNotepadData() {
       const id = this.notepadsNameFromRequest;
       const response = await axios.get(`${this.mainUrl}${id}`);
-      const text = response.data.data.noteText;
-      const notepadsNameFromRequest = response.data.data.notePadsName;
+      const text = response.data.data.noteText || "";
 
+      this.savedText = text;
       this.notepadsText = text;
-      this.notepadsName = notepadsNameFromRequest;
+      this.notepadsName = response.data.data.notePadsName;
     },
     async updaNotePad() {
-      const objectToUpdate = {
-        noteText: this.notepadsText,
-      };
+      const textToSave = this.notepadsText;
       this.alertText = "Updating your notes..";
       const id = this.notepadsNameFromRequest;
-      const response = await axios.patch(
-        `${this.mainUrl}${id}`,
-        objectToUpdate
-      );
 
-      if (response.status === 200) {
-        let today = new Date();
-        let time =
-          today.getHours() +
-          ":" +
-          today.getMinutes() +
-          ":" +
-          today.getSeconds();
-
-        this.alertText = `Your notepad updated at ${time}`;
+      try {
+        await axios.patch(`${this.mainUrl}${id}`, { noteText: textToSave });
+        this.savedText = textToSave;
+        this.alertText = `Your notepad updated at ${new Date().toLocaleTimeString()}`;
         this.typeOfAlert = "success";
-      } else {
+      } catch (error) {
         this.alertText = `Couldn't Update`;
         this.typeOfAlert = "error";
       }
-
-      const text = response.data.data.noteText;
-      const notepadsNameFromRequest = response.data.data.notePadsName;
-
-      this.notepadsText = text;
-      this.notepadsName = notepadsNameFromRequest;
     },
     onEditorChange() {
       clearTimeout(this.timer);
+      // Loading a note also fires a change event; only save real edits.
+      if (this.notepadsText === this.savedText) return;
 
       this.timer = setTimeout(() => {
         this.updaNotePad();
@@ -201,17 +135,6 @@ export default {
     onError: function () {
       this.dialog = true;
       this.snackText = "Error Occured";
-    },
-    async updatePassword() {
-      const passwordToUpdate = this.password;
-      const passObject = { password: passwordToUpdate };
-      const response = await axios.patch(`${this.mainUrl}${id}`, passObject);
-      console.log(response);
-    },
-    beforeCreate() {
-      this.color = "bc-header-red";
-      document.body.className = this.color;
-      document.body.style.backgroundColor = "grey";
     },
   },
   created() {
