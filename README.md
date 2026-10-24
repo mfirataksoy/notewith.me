@@ -1,5 +1,7 @@
 # notewith.me
 
+Built by Mehmet Firat Aksoy · [mfirataksoy.com](https://mfirataksoy.com)
+
 ## Project setup
 ```
 npm install
