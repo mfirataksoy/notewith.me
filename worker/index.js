@@ -1,6 +1,9 @@
 import { routePartykitRequest } from "partyserver";
 
+import { handleAssistant } from "./assistant.js";
+
 export { NoteRoom } from "./room.js";
+export { AssistantChat } from "./assistant.js";
 
 // Origins the app is served from. Netlify deploy previews look like
 // https://<hash>--notewith-me.netlify.app.
@@ -32,6 +35,9 @@ export default {
           Vary: "Origin",
         }
       : false;
+    if (new URL(request.url).pathname === "/api/asistan") {
+      return handleAssistant(request, env, cors ? { ...cors, "Access-Control-Allow-Headers": "Content-Type" } : {});
+    }
     return (
       (await routePartykitRequest(request, env, { cors })) ||
       new Response("Not found", { status: 404 })

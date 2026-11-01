@@ -1,5 +1,6 @@
 <template>
   <router-view />
+  <AssistantPanel />
   <div v-if="fatalError" class="crash" role="alert">
     <div class="crash__box">
       <h1>Something went wrong</h1>
@@ -12,6 +13,7 @@
 
 <script setup>
 import { fatalError } from "./lib/crash";
+import AssistantPanel from "./components/AssistantPanel.vue";
 
 function reload() {
   location.reload();
