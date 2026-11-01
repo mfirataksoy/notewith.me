@@ -4,7 +4,8 @@ import vue from "@vitejs/plugin-vue";
 export default defineConfig({
   plugins: [vue()],
   build: {
-    // The editor chunk (Tiptap, ProseMirror, Yjs) is ~560 kB before gzip.
-    chunkSizeWarningLimit: 650,
+    // The app bundle is mostly the editor (Tiptap, ProseMirror, Yjs): ~660 kB
+    // before gzip, ~215 kB after. PostHog loads separately.
+    chunkSizeWarningLimit: 720,
   },
 });

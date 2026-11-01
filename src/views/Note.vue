@@ -68,7 +68,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onErrorCaptured, ref, shallowRef, watch } from "vue";
 import * as Y from "yjs";
 import { Check, Link2, Lock, LockOpen } from "lucide-vue-next";
 import NoteEditor from "../components/NoteEditor.vue";
@@ -81,6 +81,7 @@ import { EncryptedProvider } from "../lib/encryptedProvider";
 import { ITERATIONS, deriveKeys, encryptBytes, newSalt } from "../lib/noteCrypto";
 import { loadUser, saveUser } from "../lib/identity";
 import { capture, captureOnce } from "../lib/analytics";
+import { reportError } from "../lib/crash";
 
 const props = defineProps({ id: { type: String, required: true } });
 
@@ -302,6 +303,18 @@ function rename(name) {
 function onEdit() {
   captureOnce("note_first_edit", props.id, { locked: locked.value });
 }
+
+// If the editor breaks (say, on an update from another device), rebuild it
+// from the shared document instead of leaving a blank page. The document is
+// safe on the server either way.
+let editorRestarts = 0;
+onErrorCaptured((error) => {
+  if (editorRestarts >= 2) return true;
+  editorRestarts++;
+  reportError(error, "editor");
+  session.value++;
+  return false;
+});
 
 watch(() => props.id, start, { immediate: true });
 onBeforeUnmount(teardown);
