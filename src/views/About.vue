@@ -32,7 +32,8 @@
             <v-icon>mdi-clipboard-edit-outline</v-icon>
           </v-btn>
         </v-alert>
-        <div class="editor">
+        <!-- ph-no-capture: autocapture never records the note's text. -->
+        <div class="editor ph-no-capture">
           <quill-editor
             @change="onEditorChange($event)"
             ref="myQuillEditor"
@@ -53,6 +54,7 @@ import Footer from "../components/Footer";
 /* import _ from 'lodash';
  */
 import axios from "axios";
+import { capture, captureOnce } from "../analytics";
 
 export default {
   name: "About",
@@ -70,6 +72,7 @@ export default {
       notepadsText: "",
       timer: undefined,
       savedText: "",
+      isNew: false,
       editorOption: {
         theme: "snow",
         placeholder: "Click here to start typing",
@@ -103,6 +106,9 @@ export default {
       this.savedText = text;
       this.notepadsText = text;
       this.notepadsName = response.data.data.notePadsName;
+      // An empty note is a fresh link (the server only stores saved notes).
+      this.isNew = !text;
+      captureOnce("note_opened", id, { is_new: this.isNew });
     },
     async updaNotePad() {
       const textToSave = this.notepadsText;
@@ -112,6 +118,8 @@ export default {
       try {
         await axios.patch(`${this.mainUrl}${id}`, { noteText: textToSave });
         this.savedText = textToSave;
+        // Autosave runs every few seconds while typing; count it once per note.
+        captureOnce("note_saved", id, { is_new: this.isNew });
         this.alertText = `Your notepad updated at ${new Date().toLocaleTimeString()}`;
         this.typeOfAlert = "success";
       } catch (error) {
@@ -123,12 +131,16 @@ export default {
       clearTimeout(this.timer);
       // Loading a note also fires a change event; only save real edits.
       if (this.notepadsText === this.savedText) return;
+      captureOnce("note_first_edit", this.notepadsNameFromRequest, {
+        is_new: this.isNew,
+      });
 
       this.timer = setTimeout(() => {
         this.updaNotePad();
       }, 2500);
     },
     onCopy: function () {
+      capture("note_link_copied");
       this.dialog = true;
       this.snackText = " Copied to clipboard";
     },

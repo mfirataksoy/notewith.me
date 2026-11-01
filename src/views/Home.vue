@@ -8,11 +8,13 @@
 
 <script>
 import { nanoid } from "nanoid";
+import { capture } from "../analytics";
 
 export default {
   name: "Home",
   created() {
     // The notepad is created on the server with the first save.
+    capture("note_created");
     this.$router.replace({ name: "About", params: { id: nanoid(6) } });
   },
 };
