@@ -3,7 +3,7 @@
     <span>
       contribute to our
       <a href="https://github.com/mfirataksoy/notewith.me">Github repo!</a> —
-      <strong>notewith.me @ 2021</strong>
+      <strong>noteful.me @ 2021</strong>
     </span>
     <span aria-hidden="true">·</span>
     <a class="signature" href="https://mfirataksoy.com" title="Built by Mehmet Firat Aksoy">

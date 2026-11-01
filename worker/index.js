@@ -5,9 +5,9 @@ export { NoteRoom } from "./room.js";
 // Origins the app is served from. Netlify deploy previews look like
 // https://<hash>--notewith-me.netlify.app.
 const ORIGINS = [
+  /^https:\/\/(www\.)?noteful\.me$/,
   /^https:\/\/notewith-me\.netlify\.app$/,
   /^https:\/\/[a-z0-9-]+--notewith-me\.netlify\.app$/,
-  /^https:\/\/notewith\.mfirataksoy\.com$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
 ];
 

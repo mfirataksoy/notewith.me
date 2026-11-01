@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <header class="top">
-      <router-link to="/" class="brand" title="Start a new note">notewith.me</router-link>
+      <router-link to="/" class="brand" title="Start a new note">noteful.me</router-link>
       <span v-if="phase === 'editor'" class="status" :class="`status--${status}`" :title="statusText">
         <span class="status__dot" /><span class="status__label">{{ statusText }}</span>
       </span>

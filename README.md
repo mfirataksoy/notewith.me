@@ -1,4 +1,4 @@
-# notewith.me
+# noteful.me
 
 Built by Mehmet Firat Aksoy · [mfirataksoy.com](https://mfirataksoy.com)
 
@@ -8,7 +8,7 @@ without conflicts, even after going offline for a while. Any note can be locked
 with a password, which encrypts it in the browser, so the server never sees what
 it says.
 
-**Live:** https://notewith-me.netlify.app
+**Live:** https://noteful.me (formerly notewith.me; the Netlify site is still `notewith-me`)
 
 ## How it works
 
