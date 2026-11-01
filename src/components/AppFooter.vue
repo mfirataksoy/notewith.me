@@ -16,6 +16,8 @@
       </svg>
       mfirataksoy
     </a>
+    <span aria-hidden="true">·</span>
+    <a class="privacy" href="/kvkk/">Privacy · KVKK</a>
   </footer>
 </template>
 
@@ -41,8 +43,12 @@
   color: inherit;
   text-decoration: none;
 }
-.signature:hover {
+.signature:hover,
+.privacy:hover {
   color: var(--ink);
+}
+.privacy {
+  color: inherit;
 }
 /* Navy arcs on light pages, soft gold on dark ones. */
 .signature__arcs {
