@@ -8,7 +8,7 @@ without conflicts, even after going offline for a while. Any note can be locked
 with a password, which encrypts it in the browser, so the server never sees what
 it says.
 
-**Live:** https://noteful.me (formerly notewith.me; the Netlify site is still `notewith-me`)
+**Live:** https://noteful.me (formerly notewith.me)
 
 ## How it works
 
@@ -19,11 +19,11 @@ it says.
   is its own Cloudflare Durable Object (`worker/room.js`, built on
   `y-partyserver`) that browsers reach over WebSocket. It merges updates, relays
   cursors and stores the document in the object's SQLite storage.
-- **Hosting:** Netlify serves the app (`dist/`); the Worker runs on Cloudflare.
-- **Old notes:** notes from before the realtime editor are HTML in MongoDB. The
-  first time an old note is opened, its room fetches the HTML from the legacy API
-  (`app.js`, a Netlify Function) and hands it to that browser, which imports it.
-  The legacy API is read-only now.
+- **Hosting:** Cloudflare Pages serves the app (`dist/`, project `noteful`); the Worker runs at `live.noteful.me`.
+- **Old notes:** notes from before the realtime editor were HTML in MongoDB, and
+  were copied once into a D1 database (`noteful-legacy`, see
+  `scripts/export-legacy-notes.cjs`). The first time an old note is opened, its
+  room reads the HTML from D1 and hands it to that browser, which imports it.
 
 ## Locked notes
 
@@ -51,9 +51,9 @@ npm run dev:worker   # the realtime Worker on http://localhost:8787
 npm run dev          # the app on http://localhost:5173
 ```
 
-To try the import of old notes, run the legacy API too (`npm start`, needs
-MongoDB on `mongodb://127.0.0.1:27017` or `MONGODB_URI`) and put
-`LEGACY_API=http://localhost:2500` in `.dev.vars`.
+To try the import of old notes, apply the D1 schema locally
+(`npx wrangler d1 migrations apply noteful-legacy --local`) and insert a row into
+`notes` with `npx wrangler d1 execute noteful-legacy --local --command "..."`.
 
 With the Worker running, `npm run test:realtime` checks the locked-note rules:
 nothing reaches a connection without the key, compaction, and the lockout after
@@ -61,7 +61,7 @@ wrong passwords.
 
 ## Deploy
 
-1. `npm run deploy:worker` publishes the Worker to
-   `notewith-me.mehmetfirataksoy.workers.dev` (host set in `.env.production`).
-2. Netlify builds the app with `npm run build` (see `netlify.toml`); the legacy
-   API needs `MONGODB_URI` in the site's environment variables.
+1. `npm run deploy:worker` publishes the Worker to `live.noteful.me` (host set
+   in `.env.production`). Deploy it first when a change touches both.
+2. Cloudflare Pages builds the app from `main` with `npm run build` (output
+   `dist/`). The SPA fallback needs no config: there is no `404.html`.
