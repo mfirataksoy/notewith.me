@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Realtime backend: one Durable Object per note, reached over WebSocket.
+  // The Vue app itself is still served by Netlify.
+  "name": "notewith-me",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "NoteRoom", "class_name": "NoteRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NoteRoom"] }],
+  "vars": {
+    // Where notes written before the realtime editor still live (MongoDB behind
+    // a Netlify Function). A room imports its old note from here once.
+    "LEGACY_API": "https://notewith-me.netlify.app",
+    // Comma-separated origins allowed besides the built-in list in worker/index.js.
+    "EXTRA_ORIGINS": ""
+  }
+}
