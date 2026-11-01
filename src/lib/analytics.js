@@ -85,8 +85,11 @@ export async function initAnalytics() {
   client.init(POSTHOG_TOKEN, {
     api_host: POSTHOG_HOST,
     defaults: "2026-01-30",
-    // No cookies; returning visitors are recognised through localStorage.
-    persistence: "localStorage",
+    // Cookieless (KVKK): nothing is stored on the device, so no consent
+    // banner is needed. PostHog identifies visits with a server-side hash;
+    // the project must have cookieless mode turned on in its settings.
+    cookieless_mode: "always",
+    persistence: "memory",
     // Notes are free text that replay would not mask.
     disable_session_recording: true,
     before_send: maskNoteIds,
