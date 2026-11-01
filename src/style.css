@@ -1,0 +1,263 @@
+:root {
+  --bg: #ffffff;
+  --surface: #f7f7f5;
+  --ink: #1b1b18;
+  --ink-soft: #6b6b66;
+  --line: #e6e6e1;
+  --accent: #3e63dd;
+  --accent-soft: #edf1fd;
+  --danger: #d93d42;
+  --ok: #30a46c;
+  --warn: #c48a1a;
+  --mark: #fff1a8;
+  --code-bg: #1f2023;
+  --radius: 10px;
+  --shadow: 0 10px 30px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.06);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --surface: #1f1f1d;
+    --ink: #ececea;
+    --ink-soft: #9b9b95;
+    --line: #2f2f2c;
+    --accent: #8da4ef;
+    --accent-soft: #24293d;
+    --mark: #5c4d12;
+    --code-bg: #0e0e0f;
+    --shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.loading {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+/* Buttons shared by the header, toolbar and dialogs */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover {
+  background: var(--surface);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.btn--primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+.btn--primary:hover {
+  background: var(--ink);
+  opacity: 0.88;
+}
+.btn--danger {
+  color: var(--danger);
+}
+.btn--icon {
+  width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+
+.field {
+  display: block;
+  margin-bottom: 14px;
+}
+.field span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.field input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+.field input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.error-text {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+/* The editor (Tiptap / ProseMirror) */
+.tiptap {
+  outline: none;
+  min-height: 55vh;
+  padding: 8px 0 120px;
+  font-size: 17px;
+  line-height: 1.7;
+}
+.tiptap > * + * {
+  margin-top: 0.6em;
+}
+.tiptap p {
+  margin: 0;
+}
+.tiptap h1,
+.tiptap h2,
+.tiptap h3 {
+  line-height: 1.25;
+  margin: 1.2em 0 0.2em;
+  letter-spacing: -0.01em;
+}
+.tiptap h1 {
+  font-size: 1.9em;
+}
+.tiptap h2 {
+  font-size: 1.4em;
+}
+.tiptap h3 {
+  font-size: 1.15em;
+}
+.tiptap > :first-child {
+  margin-top: 0;
+}
+.tiptap ul,
+.tiptap ol {
+  padding-left: 1.4em;
+  margin: 0.4em 0;
+}
+.tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+.tiptap ul[data-type="taskList"] li {
+  display: flex;
+  gap: 0.5em;
+  align-items: flex-start;
+}
+.tiptap ul[data-type="taskList"] li > label {
+  margin-top: 0.3em;
+}
+.tiptap ul[data-type="taskList"] li > label input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+.tiptap blockquote {
+  margin: 0.6em 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--line);
+  color: var(--ink-soft);
+}
+.tiptap code {
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: var(--surface);
+  font: 0.9em ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.tiptap pre {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  color: #e8e8e6;
+  overflow-x: auto;
+}
+.tiptap pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+}
+.tiptap mark {
+  background: var(--mark);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 0.1em;
+}
+.tiptap hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 1.4em 0;
+}
+.tiptap a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ink-soft);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* Other people's cursors */
+.collaboration-carets__caret {
+  position: relative;
+  margin: 0 -1px;
+  border-left: 1px solid;
+  border-right: 1px solid;
+  word-break: normal;
+  pointer-events: none;
+}
+.collaboration-carets__label {
+  position: absolute;
+  top: -1.45em;
+  left: -1px;
+  padding: 1px 6px;
+  border-radius: 4px 4px 4px 0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  user-select: none;
+}

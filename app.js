@@ -53,22 +53,11 @@ api.get("/:id", async (req, res) => {
   }
 });
 
-api.patch("/:id", async (req, res) => {
-  const textToUpdate = req.body.noteText;
-  if (typeof textToUpdate !== "string") {
-    return res.status(400).json({ status: "noteText is required" });
-  }
-
-  try {
-    const notepad = await Notepad.findOneAndUpdate(
-      { notePadsName: req.params.id },
-      { noteText: textToUpdate, lastUpdateDate: Date.now() },
-      { new: true, upsert: true, runValidators: true }
-    );
-    res.status(200).json({ status: "Updated", data: notepad });
-  } catch (error) {
-    res.status(400).json({ status: "Couldn't Update" });
-  }
+// Notes are edited live on the realtime Worker now; this API only serves notes
+// written before that, for the Worker to import. A tab still running the old
+// app gets an error instead of writing to a copy nobody reads any more.
+api.patch("/:id", (req, res) => {
+  res.status(410).json({ status: "Moved to the realtime editor. Reload the page." });
 });
 
 // /api is the public path; Netlify may hand the function its own path instead.

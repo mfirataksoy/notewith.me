@@ -14,5 +14,5 @@ app.get("*", (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`notewith.me listening at http://localhost:${port}`);
+  console.log(`noteful.me listening at http://localhost:${port}`);
 });

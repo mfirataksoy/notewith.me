@@ -1,21 +1,13 @@
 <template>
-  <v-app>
-    <div style="display: flex; justify-content: center; align-items: center">
-      <h2>Loading your notepad...</h2>
-    </div>
-  </v-app>
+  <p class="loading">Opening a new note…</p>
 </template>
 
-<script>
+<script setup>
 import { nanoid } from "nanoid";
-import { capture } from "../analytics";
+import { useRouter } from "vue-router";
+import { capture } from "../lib/analytics";
 
-export default {
-  name: "Home",
-  created() {
-    // The notepad is created on the server with the first save.
-    capture("note_created");
-    this.$router.replace({ name: "About", params: { id: nanoid(6) } });
-  },
-};
+// A note exists as soon as someone types in it; until then it's just a URL.
+capture("note_created");
+useRouter().replace(`/${nanoid(6)}`);
 </script>

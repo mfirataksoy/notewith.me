@@ -1,4 +1,3 @@
-import posthog from "posthog-js";
 
 // Public project key (safe to ship in the bundle); same PostHog project as mfirataksoy.com.
 const POSTHOG_TOKEN = "phc_zz3FEQ6NNTeNJcS9WKTRDSnQod3FYjuXsJ7EPd77Cozq";
@@ -8,7 +7,7 @@ const POSTHOG_HOST = "https://us.i.posthog.com";
 // (for my own visits); ?track turns it back on.
 const OPT_OUT_KEY = "mfa-notrack";
 
-const isProd = process.env.NODE_ENV === "production";
+const isProd = import.meta.env.PROD;
 
 const seen = new Set();
 
@@ -26,10 +25,15 @@ function optedOut() {
 // Only production builds report, so local dev visits stay out of the data.
 export const analyticsEnabled = isProd && !optedOut();
 
+// posthog-js loads in the background; events captured before it arrives wait.
+let posthog = null;
+const queue = [];
+
 export function capture(event, props = {}) {
   if (!isProd) console.debug("[analytics]", event, props);
   if (!analyticsEnabled) return;
-  posthog.capture(event, props);
+  if (posthog) posthog.capture(event, props);
+  else queue.push([event, props]);
 }
 
 /** Like capture, but only the first time for a given id on this page load. */
@@ -75,16 +79,19 @@ function maskNoteIds(event) {
   return event;
 }
 
-export function initAnalytics() {
+export async function initAnalytics() {
   if (!analyticsEnabled) return;
-  posthog.init(POSTHOG_TOKEN, {
+  const { default: client } = await import("posthog-js");
+  client.init(POSTHOG_TOKEN, {
     api_host: POSTHOG_HOST,
     defaults: "2026-01-30",
     // No cookies; returning visitors are recognised through localStorage.
     persistence: "localStorage",
-    // Notes are free text in a Quill editor that replay would not mask.
+    // Notes are free text that replay would not mask.
     disable_session_recording: true,
     before_send: maskNoteIds,
   });
-  posthog.register({ site: "NoteWith.Me" });
+  client.register({ site: "NoteWith.Me" });
+  posthog = client;
+  for (const [event, props] of queue.splice(0)) posthog.capture(event, props);
 }

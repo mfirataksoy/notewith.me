@@ -1,22 +1,20 @@
-import Vue from "vue";
+import { createApp } from "vue";
+import { createRouter, createWebHistory } from "vue-router";
 import App from "./App.vue";
-import router from "./router";
-import VueQuillEditor from "vue-quill-editor";
-import VueClipboard from "vue-clipboard2";
+import Home from "./views/Home.vue";
+import { initAnalytics } from "./lib/analytics";
+import "./style.css";
 
-Vue.use(VueClipboard);
-import "quill/dist/quill.core.css"; // import styles
-import "quill/dist/quill.snow.css"; // for snow theme
-import vuetify from "./plugins/vuetify";
-import { initAnalytics } from "./analytics";
+const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: "/", component: Home },
+    // The editor is most of the bundle, so it loads on its own.
+    { path: "/:id", component: () => import("./views/Note.vue"), props: true },
+  ],
+});
 
-Vue.use(VueQuillEditor /* { default global options } */);
-Vue.config.productionTip = false;
-// Off in dev and for browsers opted out with ?notrack (see analytics.js).
+// Off in dev and for browsers opted out with ?notrack (see lib/analytics.js).
 initAnalytics();
 
-new Vue({
-  router,
-  vuetify,
-  render: (h) => h(App),
-}).$mount("#app");
+createApp(App).use(router).mount("#app");
