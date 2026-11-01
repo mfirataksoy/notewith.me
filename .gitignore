@@ -28,3 +28,6 @@ pnpm-debug.log*
 # Wrangler
 .dev.vars
 .wrangler
+
+# One-time export of old notes (scripts/export-legacy-notes.cjs)
+legacy-notes.sql

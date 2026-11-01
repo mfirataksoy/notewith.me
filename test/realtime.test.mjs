@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 // Checks the realtime Worker's locked-note rules against a running `npm run dev:worker`:
 //   npm run test:realtime
-// or against the deployed Worker: PARTY_HOST=notewith-me.mehmetfirataksoy.workers.dev npm run test:realtime
+// or against the deployed Worker: PARTY_HOST=live.noteful.me npm run test:realtime
 import { newSalt, deriveKeys, encryptBytes, ITERATIONS } from "../src/lib/noteCrypto.js";
 const host = process.env.PARTY_HOST || "127.0.0.1:8787";
 const secure = !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);

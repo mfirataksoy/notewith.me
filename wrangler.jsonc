@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Realtime backend: one Durable Object per note, reached over WebSocket.
-  // The Vue app itself is still served by Netlify.
+  // Realtime backend: one Durable Object per note, reached over WebSocket at
+  // live.noteful.me. The Vue app is a separate Cloudflare Pages project (noteful).
   "name": "notewith-me",
   "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
@@ -9,10 +9,13 @@
     "bindings": [{ "name": "NoteRoom", "class_name": "NoteRoom" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NoteRoom"] }],
+  "routes": [{ "pattern": "live.noteful.me", "custom_domain": true }],
+  // Notes written before the realtime editor (copied from MongoDB once with
+  // scripts/export-legacy-notes.cjs). A room imports its old note from here.
+  "d1_databases": [
+    { "binding": "LEGACY_DB", "database_name": "noteful-legacy", "database_id": "ef1cad4e-51a0-4100-aefc-40620ee3edf8", "migrations_dir": "migrations" }
+  ],
   "vars": {
-    // Where notes written before the realtime editor still live (MongoDB behind
-    // a Netlify Function). A room imports its old note from here once.
-    "LEGACY_API": "https://notewith-me.netlify.app",
     // Comma-separated origins allowed besides the built-in list in worker/index.js.
     "EXTRA_ORIGINS": ""
   }

@@ -2,10 +2,10 @@ import { routePartykitRequest } from "partyserver";
 
 export { NoteRoom } from "./room.js";
 
-// Origins the app is served from. Netlify deploy previews look like
-// https://<hash>--notewith-me.netlify.app.
+// Origins the app is served from. next.noteful.me is a staging name for checking
+// a deploy before the domain moves; the Netlify ones go once that site only redirects.
 const ORIGINS = [
-  /^https:\/\/(www\.)?noteful\.me$/,
+  /^https:\/\/(www\.|next\.)?noteful\.me$/,
   /^https:\/\/notewith-me\.netlify\.app$/,
   /^https:\/\/[a-z0-9-]+--notewith-me\.netlify\.app$/,
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,

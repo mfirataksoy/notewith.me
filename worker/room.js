@@ -70,17 +70,15 @@ export class NoteRoom extends YServer {
     }
   }
 
-  // Notes written before the realtime editor are HTML in MongoDB. The server
-  // can't turn HTML into editor content, so it hands the HTML to the first
-  // browser that opens the empty note, and that browser imports it.
+  // Notes written before the realtime editor are HTML, copied from MongoDB into
+  // D1. The server can't turn HTML into editor content, so it hands the HTML to
+  // the first browser that opens the empty note, and that browser imports it.
   async loadLegacy() {
     try {
-      const response = await fetch(
-        `${this.env.LEGACY_API}/api/${encodeURIComponent(this.name)}`,
-        { signal: AbortSignal.timeout(8000) }
-      );
-      const body = await response.json();
-      const html = body.status === "Found" ? body.data.noteText || "" : "";
+      const html =
+        (await this.env.LEGACY_DB.prepare("SELECT html FROM notes WHERE name = ?1")
+          .bind(this.name)
+          .first("html")) || "";
       if (html.trim()) this.legacyHtml = html;
       else this.setMeta("legacyDone", "1");
     } catch (error) {
