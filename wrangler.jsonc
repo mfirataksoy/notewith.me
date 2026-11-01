@@ -10,6 +10,8 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NoteRoom"] }],
   "routes": [{ "pattern": "live.noteful.me", "custom_domain": true }],
+  // Keep notewith-me.mehmetfirataksoy.workers.dev on: builds made before live.noteful.me still connect there.
+  "workers_dev": true,
   // Notes written before the realtime editor (copied from MongoDB once with
   // scripts/export-legacy-notes.cjs). A room imports its old note from here.
   "d1_databases": [
