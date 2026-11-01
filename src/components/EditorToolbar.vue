@@ -10,6 +10,7 @@
         :class="{ 'is-active': item.active && item.active() }"
         :title="item.shortcut ? `${item.label} (${item.shortcut})` : item.label"
         :aria-label="item.label"
+        :data-tool="item.label"
         :aria-pressed="item.active ? String(!!item.active()) : undefined"
         :disabled="item.can && !item.can()"
         @click="item.run()"
@@ -102,6 +103,22 @@ const groups = [
 .toolbar__btn.is-active {
   background: var(--accent-soft);
   color: var(--accent);
+}
+/* The assistant points at a button (lib/assistant.js pointAt). */
+.toolbar__btn.is-pointed {
+  color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .toolbar__btn.is-pointed {
+    animation: point 0.9s ease-in-out 4;
+  }
+}
+@keyframes point {
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent);
+    transform: scale(1.12);
+  }
 }
 .toolbar__btn:disabled {
   opacity: 0.35;

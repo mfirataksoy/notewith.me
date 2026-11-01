@@ -6,9 +6,16 @@
   "main": "worker/index.js",
   "compatibility_date": "2026-10-01",
   "durable_objects": {
-    "bindings": [{ "name": "NoteRoom", "class_name": "NoteRoom" }]
+    "bindings": [
+      { "name": "NoteRoom", "class_name": "NoteRoom" },
+      // The Noteful assistant (worker/assistant.js): one per conversation, plus the rate limits.
+      { "name": "AssistantChat", "class_name": "AssistantChat" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["NoteRoom"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["NoteRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["AssistantChat"] }
+  ],
   "vars": {
     // Where notes written before the realtime editor still live (MongoDB behind
     // a Netlify Function). A room imports its old note from here once.
