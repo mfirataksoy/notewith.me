@@ -50,9 +50,8 @@ it says.
   (`noteful-image:<id>#k=…`), so the server never sees an image, and for locked
   notes the address is encrypted with the rest of the note. Deleting a note
   deletes its images.
-- **Abuse limits:** 6 uploads a minute per visitor (Workers rate limiting) and
-  40 an hour (D1 `upload_counts`, keyed by a daily hash of the IP, pruned after
-  48 h); 8 MB per image and 50 MB per note; all images together stop at
+- **Abuse limits:** 6 uploads a minute and 40 an hour per visitor (D1
+  `upload_counts`, keyed by a daily hash of the IP, pruned after 48 h); 8 MB per image and 50 MB per note; all images together stop at
   `IMAGE_STORAGE_GB` (D1 `image_usage`). *Report abuse* (footer and the ⋯ menu)
   mails a note's link, which is enough to open and delete it.
 - **Comments:** select text and press *Comment* (or ⌘⌥M). Threads live in the

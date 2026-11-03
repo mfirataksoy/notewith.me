@@ -35,6 +35,7 @@ async function routeView(request, env, viewId, cors) {
   return room.fetch(new Request(request.url, { method: request.method, headers }));
 }
 
+const UPLOADS_PER_MINUTE = 6;
 const UPLOADS_PER_HOUR = 40;
 
 async function sha256Hex(text) {
@@ -42,27 +43,31 @@ async function sha256Hex(text) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// Image uploads per visitor: at most 6 a minute (Cloudflare rate limiter) and
-// UPLOADS_PER_HOUR an hour. Returns a response when the visitor is over.
+// Image uploads per visitor: UPLOADS_PER_MINUTE a minute and UPLOADS_PER_HOUR
+// an hour, counted in D1 (exact, unlike Cloudflare's approximate rate limiter).
+// Returns a response when the visitor is over.
 async function limitUploads(request, env, cors) {
   const ip = request.headers.get("CF-Connecting-IP") || "local";
-  const tooMany = () =>
-    Response.json({ error: "slow down" }, { status: 429, headers: { "Retry-After": "60", ...(cors || {}) } });
-  const { success } = await env.UPLOAD_LIMITER.limit({ key: ip });
-  if (!success) return tooMany();
-
-  const hour = Math.floor(Date.now() / 3600e3);
   // The IP is only kept as a hash that changes every day.
   const who = (await sha256Hex(`${ip}|${new Date().toISOString().slice(0, 10)}`)).slice(0, 32);
-  const n = await env.LEGACY_DB.prepare(
+  const minute = Math.floor(Date.now() / 60e3);
+  const hour = Math.floor(minute / 60);
+  const count = env.LEGACY_DB.prepare(
     "INSERT INTO upload_counts (who, hour, n) VALUES (?1, ?2, 1) ON CONFLICT (who, hour) DO UPDATE SET n = n + 1 RETURNING n"
-  )
-    .bind(who, hour)
-    .first("n");
+  );
+  // Minute counters share the table under "<hash>:m", with the minute in `hour`.
+  const [perHour, perMinute] = await env.LEGACY_DB.batch([count.bind(who, hour), count.bind(`${who}:m`, minute)]);
   if (Math.random() < 0.02) {
-    await env.LEGACY_DB.prepare("DELETE FROM upload_counts WHERE hour < ?1").bind(hour - 48).run();
+    await env.LEGACY_DB.prepare(
+      "DELETE FROM upload_counts WHERE (who LIKE '%:m' AND hour < ?1) OR (who NOT LIKE '%:m' AND hour < ?2)"
+    )
+      .bind(minute - 10, hour - 48)
+      .run();
   }
-  return n > UPLOADS_PER_HOUR ? tooMany() : null;
+  if (perMinute.results[0].n > UPLOADS_PER_MINUTE || perHour.results[0].n > UPLOADS_PER_HOUR) {
+    return Response.json({ error: "slow down" }, { status: 429, headers: { "Retry-After": "60", ...(cors || {}) } });
+  }
+  return null;
 }
 
 export default {
