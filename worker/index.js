@@ -46,12 +46,27 @@ export default {
     const cors = origin
       ? {
           "Access-Control-Allow-Origin": origin,
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, X-Note-Key",
           Vary: "Origin",
         }
       : false;
-    const view = new URL(request.url).pathname.match(/^\/view\/([A-Za-z0-9_-]{12,32})$/);
+    const path = new URL(request.url).pathname;
+    // Images are ciphertext; their ids are unguessable and their keys are in the note.
+    const image = path.match(/^\/img\/([A-Za-z0-9_-]{22})$/);
+    if (image) {
+      if (request.method === "OPTIONS") return new Response(null, { headers: cors || {} });
+      const object = await env.IMAGES.get(image[1]);
+      if (!object) return new Response("Not found", { status: 404, headers: cors || {} });
+      return new Response(object.body, {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Cache-Control": "public, max-age=31536000, immutable",
+          ...(cors || {}),
+        },
+      });
+    }
+    const view = path.match(/^\/view\/([A-Za-z0-9_-]{12,32})$/);
     if (view) {
       if (request.method === "OPTIONS") return new Response(null, { headers: cors || {} });
       return routeView(request, env, view[1], cors);

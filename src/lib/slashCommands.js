@@ -9,6 +9,7 @@ import {
   Heading2,
   Heading3,
   Highlighter,
+  ImagePlus,
   List,
   ListOrdered,
   ListTodo,
@@ -33,6 +34,7 @@ const ITEMS = [
   { title: "Code block", hint: "Code in a monospace box", icon: SquareCode, keys: "pre snippet", run: (c) => c.toggleCodeBlock() },
   { title: "Highlight", hint: "Mark text in yellow", icon: Highlighter, keys: "mark", run: (c) => c.toggleHighlight() },
   { title: "Divider", hint: "A line between sections", icon: Minus, keys: "hr rule separator", run: (c) => c.setHorizontalRule() },
+  { title: "Image", hint: "Upload a picture (encrypted)", icon: ImagePlus, keys: "picture photo img upload", run: (c) => c.pickImage() },
   {
     title: "Table",
     hint: "3 × 3 with a header row",

@@ -7,7 +7,7 @@ export const PARTY = "note-room";
 const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(PARTY_HOST);
 export const WS_PROTOCOL = isLocal ? "ws" : "wss";
 
-const httpBase = `${isLocal ? "http" : "https"}://${PARTY_HOST}`;
+export const httpBase = `${isLocal ? "http" : "https"}://${PARTY_HOST}`;
 
 // Whether a note is locked, and the salt to derive its keys if it is.
 export async function fetchNoteInfo(id) {

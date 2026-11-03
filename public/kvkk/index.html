@@ -49,6 +49,7 @@ footer { color: var(--muted); font-size: 13px; padding-top: 2rem; padding-bottom
 <div class="table"><table><tr><th>Veri</th><th>Amaç</th><th>Hukuki sebep</th></tr>
 <tr><td>Yazdığınız not içeriği ve notun adı (bağlantısı)</td><td>Notu kaydetmek, bağlantıyla açmak ve aynı notta olan kişilerle gerçek zamanlı eşitlemek</td><td>5/2-c</td></tr>
 <tr><td>Not düzenlenirken aynı nottaki kişilere gösterilen rastgele ad, renk ve imleç konumu</td><td>Kimin nerede yazdığını göstermek</td><td>5/2-c</td></tr>
+<tr><td>Nota eklediğiniz görseller (tarayıcınızda her biri kendi anahtarıyla şifrelenir; anahtar yalnızca notun içinde durur, sunucu görseli göremez) ve yorumlar (yazanın nottaki adı ve rengiyle, notun içinde saklanır; kilitli notlarda notla birlikte şifrelenir)</td><td>Görselleri ve yorumları notla birlikte göstermek ve eşitlemek</td><td>5/2-c</td></tr>
 <tr><td>Sunucu kayıtları: IP adresi, tarih-saat, istenen not adresi, tarayıcı bilgisi</td><td>Site'yi yayında ve güvende tutmak, kötüye kullanımı önlemek</td><td>5/2-f</td></tr>
 <tr><td>Kullanım istatistikleri: görüntülenen sayfalar, tıklamalar ve Site içi olaylar (not adresleri kısaltılarak gönderilir, not içeriği hiçbir zaman gönderilmez), tarayıcı ve cihaz türü, IP adresinden çıkarılan yaklaşık konum. Cihazınızda kimlik saklanmaz, geri gelen ziyaretçiler tanınmaz, ekran kaydı yapılmaz; adınız, e-postanız veya yazdığınız metinler gönderilmez. Site bir hatayla karşılaşırsa hatanın türü, kısa mesajı ve yeri de gönderilir.</td><td>Site'nin nasıl kullanıldığını anlamak ve geliştirmek</td><td>5/2-f</td></tr>
 <tr><td>Sohbet asistanına yazdığınız mesajlar ve hangi sayfada yazdığınız</td><td>Sorularınızı yapay zekâ asistanıyla yanıtlamak; sohbetler site sahibi tarafından okunabilir</td><td>5/2-f</td></tr>
@@ -61,7 +62,7 @@ footer { color: var(--muted); font-size: 13px; padding-top: 2rem; padding-bottom
 <h2>4. Verilerin aktarıldığı taraflar</h2>
 <p>Kişisel verileriniz satılmaz ve reklam amacıyla kimseyle paylaşılmaz. Veriler yalnızca Site'nin çalışması için gereken aşağıdaki hizmet sağlayıcılarla paylaşılır. Kanunen yetkili kamu kurum ve kuruluşlarının talebi olursa ilgili mevzuat çerçevesinde onlarla da paylaşılabilir (KVKK md. 8 ve 5/2-ç).</p>
 <ul>
-<li>Cloudflare, Inc. (barındırma, gerçek zamanlı not sunucusu ve not kaydı; ABD)</li>
+<li>Cloudflare, Inc. (barındırma, gerçek zamanlı not sunucusu, not ve şifreli görsel kaydı; ABD)</li>
 <li>MongoDB, Inc. / Atlas (eski notların bir kez aktarıldığı salt okunur arşiv; AWS ABD-Doğu bölgesi)</li>
 <li>PostHog Inc. (kullanım istatistikleri; ABD)</li>
 <li>Anthropic PBC (sohbet asistanının yapay zekâ modeli; ABD)</li>
@@ -103,6 +104,7 @@ footer { color: var(--muted); font-size: 13px; padding-top: 2rem; padding-bottom
 <div class="table"><table><tr><th>Data</th><th>Purpose</th><th>Legal basis</th></tr>
 <tr><td>The note content you write and the note's name (its link)</td><td>Saving the note, opening it by its link and syncing it live with others in the same note</td><td>5/2-c</td></tr>
 <tr><td>The random name, colour and cursor position shown to others in the same note while editing</td><td>Showing who is writing where</td><td>5/2-c</td></tr>
+<tr><td>Images you add to a note (each encrypted in your browser with its own key, which is kept only inside the note, so the server can't see the image) and comments (with the author's name and colour in the note, stored inside the note; encrypted with it for locked notes)</td><td>Showing and syncing images and comments with the note</td><td>5/2-c</td></tr>
 <tr><td>Server logs: IP address, date and time, note address requested, browser details</td><td>Keeping the Site online and secure, preventing abuse</td><td>5/2-f</td></tr>
 <tr><td>Usage statistics: pages viewed, clicks and in-site events (note addresses are shortened before sending; note content is never sent), browser and device type, approximate location derived from the IP address. No identifier is stored on your device, returning visitors are not recognised, no screen recording is made; your name, email or typed text are not sent. If the Site hits an error, the error's type, a short message and where it happened are sent too.</td><td>Understanding how the Site is used and improving it</td><td>5/2-f</td></tr>
 <tr><td>Messages you write to the chat assistant and the page you wrote them on</td><td>Answering your questions with an AI assistant; the site owner can read the chats</td><td>5/2-f</td></tr>
@@ -115,7 +117,7 @@ footer { color: var(--muted); font-size: 13px; padding-top: 2rem; padding-bottom
 <h2>4. Who receives the data</h2>
 <p>Your personal data is never sold or shared for advertising. It is shared only with the service providers below, which the Site needs in order to work, and with public authorities when they are legally entitled to request it (KVKK art. 8 and 5/2-ç).</p>
 <ul>
-<li>Cloudflare, Inc. (hosting, live note server and note storage; USA)</li>
+<li>Cloudflare, Inc. (hosting, live note server, storage of notes and encrypted images; USA)</li>
 <li>MongoDB, Inc. / Atlas (read-only archive old notes are imported from once; AWS US-East region)</li>
 <li>PostHog Inc. (usage statistics; USA)</li>
 <li>Anthropic PBC (the chat assistant's AI model; USA)</li>

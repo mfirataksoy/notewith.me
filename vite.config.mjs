@@ -35,7 +35,7 @@ export default defineConfig({
   ],
   build: {
     // The app bundle is mostly the editor (Tiptap, ProseMirror, Yjs, Markdown):
-    // ~800 kB before gzip, ~260 kB after. PostHog loads separately.
-    chunkSizeWarningLimit: 850,
+    // ~880 kB before gzip, ~285 kB after. PostHog loads separately.
+    chunkSizeWarningLimit: 950,
   },
 });

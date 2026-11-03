@@ -17,6 +17,8 @@
   "d1_databases": [
     { "binding": "LEGACY_DB", "database_name": "noteful-legacy", "database_id": "ef1cad4e-51a0-4100-aefc-40620ee3edf8", "migrations_dir": "migrations" }
   ],
+  // Images, encrypted in the browser with a key that lives only in the note.
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "noteful-images" }],
   "vars": {
     // Comma-separated origins allowed besides the built-in list in worker/index.js.
     "EXTRA_ORIGINS": ""

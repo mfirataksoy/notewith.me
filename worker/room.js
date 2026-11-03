@@ -15,6 +15,9 @@ const MAX_VERSIONS = 50;
 // Self-destruct: from a minute to a year ahead.
 const MIN_EXPIRY_MS = 60 * 1000;
 const MAX_EXPIRY_MS = 366 * 24 * 60 * 60 * 1000;
+// Images: browsers shrink them first, so these are generous.
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGES = 300;
 
 const isKey = (v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 const isCipher = (m) =>
@@ -85,6 +88,8 @@ export class NoteRoom extends YServer {
     this.sql`CREATE TABLE IF NOT EXISTS log (id INTEGER PRIMARY KEY AUTOINCREMENT, iv TEXT, ct TEXT)`;
     // Open notes keep data (a Yjs state); locked notes keep iv/ct (encrypted).
     this.sql`CREATE TABLE IF NOT EXISTS versions (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, size INTEGER, data BLOB, iv TEXT, ct TEXT)`;
+    // R2 keys of this note's images, so deleting the note deletes them too.
+    this.sql`CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, size INTEGER, at INTEGER)`;
     if (this.isDeleted()) return;
     // An alarm that was missed (say, during a deploy) still deletes the note.
     const expiresAt = Number(this.meta("expiresAt") || 0);
@@ -265,6 +270,9 @@ export class NoteRoom extends YServer {
     this.sql`DELETE FROM doc`;
     this.sql`DELETE FROM log`;
     this.sql`DELETE FROM versions`;
+    const images = this.sql`SELECT id FROM images`.map((row) => row.id);
+    for (let i = 0; i < images.length; i += 1000) await this.env.IMAGES.delete(images.slice(i, i + 1000));
+    this.sql`DELETE FROM images`;
     this.sql`DELETE FROM meta`;
     this.setMeta("deleted", "1");
     this.legacyHtml = null;
@@ -436,8 +444,32 @@ export class NoteRoom extends YServer {
     return { ok: false, reason: "wrong" };
   }
 
+  // POST /parties/note-room/:id/images stores an image the browser already
+  // encrypted. Knowing the note's address is enough for open notes; locked
+  // notes also need the access key.
+  async uploadImage(request) {
+    if (this.isDeleted()) return Response.json({ error: "deleted" }, { status: 410 });
+    if (this.isLocked()) {
+      const check = await this.checkKey(request.headers.get("X-Note-Key"));
+      if (!check.ok) return Response.json(check, { status: check.reason === "blocked" ? 429 : 401 });
+    }
+    const [{ n }] = this.sql`SELECT COUNT(*) AS n FROM images`;
+    if (n >= MAX_IMAGES) return Response.json({ error: "too many images" }, { status: 413 });
+    const body = await request.arrayBuffer();
+    if (!body.byteLength || body.byteLength > MAX_IMAGE_BYTES) {
+      return Response.json({ error: "too large" }, { status: 413 });
+    }
+    const id = newViewId();
+    await this.env.IMAGES.put(id, body);
+    this.sql`INSERT INTO images (id, size, at) VALUES (${id}, ${body.byteLength}, ${Date.now()})`;
+    return Response.json({ id });
+  }
+
   // GET /parties/note-room/:id tells the app whether to ask for a password.
   onRequest(request) {
+    if (request.method === "POST" && new URL(request.url).pathname.endsWith("/images")) {
+      return this.uploadImage(request);
+    }
     if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
     if (this.isDeleted()) return Response.json({ deleted: true });
     const expiresAt = Number(this.meta("expiresAt") || 0) || null;

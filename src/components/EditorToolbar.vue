@@ -35,6 +35,8 @@ import {
   SquareCode,
   Undo2,
   Redo2,
+  ImagePlus,
+  MessageSquarePlus,
 } from "lucide-vue-next";
 
 const props = defineProps({ editor: { type: Object, required: true } });
@@ -64,6 +66,16 @@ const groups = [
     { label: "Checklist", icon: ListTodo, shortcut: "[] ", run: () => chain().toggleTaskList().run(), active: is("taskList") },
     { label: "Quote", icon: Quote, shortcut: "> ", run: () => chain().toggleBlockquote().run(), active: is("blockquote") },
     { label: "Code block", icon: SquareCode, shortcut: "``` ", run: () => chain().toggleCodeBlock().run(), active: is("codeBlock") },
+  ],
+  [
+    { label: "Image", icon: ImagePlus, shortcut: "paste or drop", run: () => props.editor.commands.pickImage() },
+    {
+      label: "Comment",
+      icon: MessageSquarePlus,
+      shortcut: `${mod}Alt+M`,
+      run: () => props.editor.commands.startComment(),
+      can: () => !props.editor.state.selection.empty,
+    },
   ],
 ];
 </script>
