@@ -9,6 +9,12 @@ const UNLOCK_BLOCK_MS = 15 * 60 * 1000;
 const COMPACT_AFTER = 100;
 // SQLite rows in a Durable Object hold at most 2 MB.
 const MAX_ROW_CHARS = 1900000;
+// Version history: a copy every 10 minutes of editing, the newest 50 kept.
+const VERSION_EVERY_MS = 10 * 60 * 1000;
+const MAX_VERSIONS = 50;
+// Self-destruct: from a minute to a year ahead.
+const MIN_EXPIRY_MS = 60 * 1000;
+const MAX_EXPIRY_MS = 366 * 24 * 60 * 60 * 1000;
 
 const isKey = (v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 const isCipher = (m) =>
@@ -24,6 +30,13 @@ async function sha256(text) {
 const toHex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 const fromHex = (hex) => Uint8Array.from(hex.match(/../g) || [], (h) => parseInt(h, 16));
 const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+function toBase64(bytes) {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
 // 16 random bytes as base64url: the id in a read-only link.
 const newViewId = () =>
   btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
@@ -60,12 +73,22 @@ export class NoteRoom extends YServer {
     return this.document.getXmlFragment(FIELD).length === 0;
   }
 
+  isDeleted() {
+    return this.meta("deleted") === "1";
+  }
+
   // ---- open notes (plain Yjs) ----
 
   async onLoad() {
     this.sql`CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)`;
     this.sql`CREATE TABLE IF NOT EXISTS doc (id INTEGER PRIMARY KEY, data BLOB)`;
     this.sql`CREATE TABLE IF NOT EXISTS log (id INTEGER PRIMARY KEY AUTOINCREMENT, iv TEXT, ct TEXT)`;
+    // Open notes keep data (a Yjs state); locked notes keep iv/ct (encrypted).
+    this.sql`CREATE TABLE IF NOT EXISTS versions (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, size INTEGER, data BLOB, iv TEXT, ct TEXT)`;
+    if (this.isDeleted()) return;
+    // An alarm that was missed (say, during a deploy) still deletes the note.
+    const expiresAt = Number(this.meta("expiresAt") || 0);
+    if (expiresAt && expiresAt <= Date.now()) return this.destroyNote();
     if (this.isLocked()) return;
 
     const [row] = this.sql`SELECT data FROM doc WHERE id = 1`;
@@ -94,9 +117,11 @@ export class NoteRoom extends YServer {
   }
 
   async onSave() {
-    if (this.isLocked()) return;
+    if (this.isLocked() || this.isDeleted()) return;
     const state = Y.encodeStateAsUpdate(this.document);
     this.sql`INSERT OR REPLACE INTO doc (id, data) VALUES (1, ${state})`;
+    const [{ last }] = this.sql`SELECT MAX(at) AS last FROM versions`;
+    if (!this.isEmpty() && Date.now() - (last || 0) >= VERSION_EVERY_MS) this.keepVersion({ data: state });
     if (this.legacyHtml && !this.isEmpty()) {
       this.legacyHtml = null;
       this.setMeta("legacyDone", "1");
@@ -104,6 +129,7 @@ export class NoteRoom extends YServer {
   }
 
   onConnect(conn, ctx) {
+    if (this.isDeleted()) return conn.close(4005, "deleted");
     // Set by worker/index.js when the connection came through a read-only link.
     const viewId = ctx.request.headers.get("x-noteful-view");
     if (viewId) {
@@ -167,7 +193,89 @@ export class NoteRoom extends YServer {
         console.error("lock failed", error);
         this.send(conn, { t: "lock-failed" });
       });
+    } else if (message.t === "keep-version") {
+      // Before a restore, so the current text can be brought back too.
+      if (!this.isEmpty()) this.keepVersion({ data: Y.encodeStateAsUpdate(this.document) });
+      this.sendVersions(conn);
+    } else {
+      this.onSharedMessage(conn, message).catch((error) => console.error("message failed", error));
     }
+  }
+
+  // Messages that work the same for open and locked notes.
+  async onSharedMessage(conn, m) {
+    if (m.t === "versions") {
+      this.sendVersions(conn);
+    } else if (m.t === "version" && Number.isInteger(m.id)) {
+      const [row] = this.sql`SELECT id, at, data, iv, ct FROM versions WHERE id = ${m.id}`;
+      if (!row) return this.send(conn, { t: "version", id: m.id, missing: true });
+      this.send(conn, {
+        t: "version",
+        id: row.id,
+        at: row.at,
+        ...(row.data ? { data: toBase64(new Uint8Array(row.data)) } : { iv: row.iv, ct: row.ct }),
+      });
+    } else if (m.t === "expire") {
+      await this.setExpiry(m);
+    }
+  }
+
+  // ---- version history ----
+
+  keepVersion({ data = null, iv = null, ct = null }) {
+    const size = data ? data.length : ct.length;
+    this.sql`INSERT INTO versions (at, size, data, iv, ct) VALUES (${Date.now()}, ${size}, ${data}, ${iv}, ${ct})`;
+    this.sql`DELETE FROM versions WHERE id NOT IN (SELECT id FROM versions ORDER BY id DESC LIMIT ${MAX_VERSIONS})`;
+  }
+
+  sendVersions(conn) {
+    const items = this.sql`SELECT id, at, size FROM versions ORDER BY id DESC`;
+    this.send(conn, { t: "versions", items });
+  }
+
+  // ---- self-destruct ----
+
+  // { at: <ms> } schedules deletion, { at: null } cancels it, { now: true } deletes now.
+  async setExpiry(m) {
+    if (m.now === true) return this.destroyNote();
+    if (m.at === null) {
+      this.setMeta("expiresAt", null);
+      await this.ctx.storage.deleteAlarm();
+    } else {
+      const ahead = Number(m.at) - Date.now();
+      if (!Number.isFinite(ahead) || ahead < MIN_EXPIRY_MS || ahead > MAX_EXPIRY_MS) return;
+      this.setMeta("expiresAt", Math.round(m.at));
+      await this.ctx.storage.setAlarm(Math.round(m.at));
+    }
+    this.broadcastAll({ t: "expiry", at: m.at === null ? null : Math.round(m.at) });
+  }
+
+  async onAlarm() {
+    const expiresAt = Number(this.meta("expiresAt") || 0);
+    // On Cloudflare the alarm can start after the room's sockets were dropped;
+    // browsers then reconnect and onConnect answers 4005.
+    if (expiresAt && expiresAt <= Date.now() + 1000) await this.destroyNote();
+  }
+
+  // Deletes everything the note had. Only a "deleted" mark stays, so the
+  // address can't come back to life with an old copy.
+  async destroyNote() {
+    this.broadcastAll({ t: "expired" });
+    for (const c of this.getConnections()) c.close(4005, "deleted");
+    this.sql`DELETE FROM doc`;
+    this.sql`DELETE FROM log`;
+    this.sql`DELETE FROM versions`;
+    this.sql`DELETE FROM meta`;
+    this.setMeta("deleted", "1");
+    this.legacyHtml = null;
+    this.legacyOfferedTo = null;
+    await this.ctx.storage.deleteAlarm();
+    const fragment = this.document.getXmlFragment(FIELD);
+    if (fragment.length) fragment.delete(0, fragment.length);
+    await this.env.LEGACY_DB.batch([
+      this.env.LEGACY_DB.prepare("DELETE FROM view_links WHERE note = ?1").bind(this.name),
+      this.env.LEGACY_DB.prepare("DELETE FROM notes WHERE name = ?1").bind(this.name),
+    ]);
   }
 
   // Creates (or with reset, replaces) the note's read-only link.
@@ -217,6 +325,8 @@ export class NoteRoom extends YServer {
     this.setMeta("locked", "1");
     this.sql`DELETE FROM doc`;
     this.sql`DELETE FROM log`;
+    // Readable copies in the history would defeat the lock.
+    this.sql`DELETE FROM versions`;
     this.sql`INSERT INTO log (iv, ct) VALUES (${m.iv}, ${m.ct})`;
     this.legacyHtml = null;
     this.legacyOfferedTo = null;
@@ -274,8 +384,14 @@ export class NoteRoom extends YServer {
       // which Yjs merges harmlessly), so those log rows can go.
       this.sql`DELETE FROM log WHERE id <= ${m.upTo}`;
       this.sql`INSERT INTO log (iv, ct) VALUES (${m.iv}, ${m.ct})`;
+    } else if (m.t === "keep-version" && isCipher(m)) {
+      // The browser encrypts the copy; the server only stores it.
+      this.keepVersion({ iv: m.iv, ct: m.ct });
+      if (m.reply) this.sendVersions(conn);
     } else if (m.t === "unlock") {
       await this.removePassword(conn, m);
+    } else {
+      await this.onSharedMessage(conn, m);
     }
   }
 
@@ -290,6 +406,8 @@ export class NoteRoom extends YServer {
       this.setMeta(key, null);
     }
     this.sql`DELETE FROM log`;
+    // Encrypted copies can't be shown once the note is open again.
+    this.sql`DELETE FROM versions`;
     this.broadcastAuthed({ t: "unlocked" });
     // Close first: applying the state below broadcasts it to open connections.
     for (const c of this.getConnections()) c.close(4002, "unlocked");
@@ -321,12 +439,15 @@ export class NoteRoom extends YServer {
   // GET /parties/note-room/:id tells the app whether to ask for a password.
   onRequest(request) {
     if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
+    if (this.isDeleted()) return Response.json({ deleted: true });
+    const expiresAt = Number(this.meta("expiresAt") || 0) || null;
     // The read-only link's id goes only to people who already have the edit link.
-    if (!this.isLocked()) return Response.json({ locked: false, viewId: this.meta("viewId") });
+    if (!this.isLocked()) return Response.json({ locked: false, viewId: this.meta("viewId"), expiresAt });
     return Response.json({
       locked: true,
       salt: this.meta("salt"),
       iterations: Number(this.meta("iterations")),
+      expiresAt,
     });
   }
 
@@ -334,6 +455,14 @@ export class NoteRoom extends YServer {
 
   send(conn, message) {
     this.sendCustomMessage(conn, JSON.stringify(message));
+  }
+
+  // Open, read-only and authenticated locked connections; never unauthenticated ones.
+  broadcastAll(message) {
+    const text = JSON.stringify(message);
+    for (const c of this.getConnections()) {
+      if (!(c.state && c.state.locked && !c.state.authed)) this.sendCustomMessage(c, text);
+    }
   }
 
   broadcastAuthed(message, except) {

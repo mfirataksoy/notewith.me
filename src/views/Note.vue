@@ -48,6 +48,9 @@
           <template #default="{ close }">
             <MoreMenu
               :readonly="readonly"
+              :expires-at="expiresAt"
+              @history="close(), (historyOpen = true)"
+              @expire="(choice) => (close(), setExpiry(choice))"
               @export="(kind) => (exportNote(kind), close())"
               @print="close(), printNote()"
               @import="(text) => (importFile(text), close())"
@@ -76,7 +79,14 @@
       <p v-if="locked && phase === 'editor'" class="banner">
         <Lock :size="14" /> End-to-end encrypted. Only people with the password can read this note.
       </p>
+      <p v-if="expiresAt && phase === 'editor'" class="banner banner--warn">
+        <Timer :size="14" /> This note deletes itself {{ expiresIn }}.
+      </p>
       <p v-if="phase === 'loading'" class="loading">Opening note…</p>
+      <div v-else-if="phase === 'deleted'" class="loading">
+        <p>This note was deleted. Its text and history are gone.</p>
+        <router-link to="/" class="btn btn--primary">Start a new note</router-link>
+      </div>
       <div v-else-if="phase === 'error'" class="loading">
         <p>{{ errorText }}</p>
         <button type="button" class="btn" @click="start">Try again</button>
@@ -98,6 +108,14 @@
 
     <AppFooter />
 
+    <HistoryPanel
+      v-model="historyOpen"
+      :locked="locked"
+      :load-versions="loadVersions"
+      :load-version="loadVersion"
+      :restore-version="restoreVersion"
+    />
+
     <LockDialog
       v-model="lockDialog"
       :locked="locked"
@@ -112,7 +130,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onErrorCaptured, ref, shallowRef, watch } from "vue";
 import * as Y from "yjs";
-import { Ellipsis, Eye, Link2, Lock, LockOpen, NotebookText } from "lucide-vue-next";
+import { Ellipsis, Eye, Link2, Lock, LockOpen, NotebookText, Timer } from "lucide-vue-next";
 import NoteEditor from "../components/NoteEditor.vue";
 import PresenceBar from "../components/PresenceBar.vue";
 import LockDialog from "../components/LockDialog.vue";
@@ -122,10 +140,11 @@ import DropMenu from "../components/DropMenu.vue";
 import SharePanel from "../components/SharePanel.vue";
 import NotesMenu from "../components/NotesMenu.vue";
 import MoreMenu from "../components/MoreMenu.vue";
+import HistoryPanel from "../components/HistoryPanel.vue";
 import { fetchNoteInfo, openProvider, viewLinkWorks, viewProvider } from "../lib/party";
-import { rememberNote } from "../lib/recentNotes";
+import { forgetNote, rememberNote } from "../lib/recentNotes";
 import { EncryptedProvider } from "../lib/encryptedProvider";
-import { ITERATIONS, deriveKeys, encryptBytes, newSalt } from "../lib/noteCrypto";
+import { ITERATIONS, decryptBytes, deriveKeys, encryptBytes, fromBase64, newSalt } from "../lib/noteCrypto";
 import { loadUser, saveUser } from "../lib/identity";
 import { capture, captureOnce } from "../lib/analytics";
 import { reportError } from "../lib/crash";
@@ -157,6 +176,21 @@ let pendingLegacy = null;
 const lockDialog = ref(false);
 const busy = ref(false);
 const lockError = ref("");
+// Self-destruct time (ms) or null, and the history panel.
+const expiresAt = ref(null);
+const historyOpen = ref(false);
+const now = ref(Date.now());
+const clock = setInterval(() => (now.value = Date.now()), 30000);
+const expiresIn = computed(() => {
+  if (!expiresAt.value) return "";
+  const minutes = Math.max(1, Math.round((expiresAt.value - now.value) / 60000));
+  const when = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(expiresAt.value);
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  const relative =
+    minutes < 60 ? rtf.format(minutes, "minute") : minutes < 2880 ? rtf.format(Math.round(minutes / 60), "hour") : rtf.format(Math.round(minutes / 1440), "day");
+  return `${relative} (${when})`;
+});
+
 // The read-only link, once one exists.
 const viewId = ref("");
 const viewBusy = ref(false);
@@ -194,8 +228,10 @@ async function start() {
     phase.value = "error";
     return;
   }
+  if (info.deleted) return noteDeleted();
   locked.value = info.locked;
   viewId.value = info.viewId || "";
+  expiresAt.value = info.expiresAt || null;
   if (!info.locked) {
     keys = null;
     connectOpen();
@@ -221,6 +257,7 @@ function connectOpen() {
     captureOnce("note_opened", props.id, { is_new: doc.getXmlFragment("default").length === 0 });
   });
   p.on("custom-message", onOpenMessage);
+  p.on("connection-close", (event) => event && event.code === 4005 && noteDeleted());
   provider.value = p;
   session.value++;
   phase.value = "editor";
@@ -249,8 +286,12 @@ async function startView() {
     remember();
     captureOnce("note_opened", props.viewId, { readonly: true });
   });
-  // 4004: the note was locked or its read-only link replaced.
-  p.on("connection-close", (event) => event && event.code === 4004 && viewGone());
+  // 4004: the note was locked or its read-only link replaced; 4005: deleted.
+  p.on("connection-close", (event) => {
+    if (event && event.code === 4004) viewGone();
+    if (event && event.code === 4005) noteDeleted();
+  });
+  p.on("custom-message", (raw) => onRoomMessage(JSON.parse(raw)));
   provider.value = p;
   session.value++;
   phase.value = "editor";
@@ -271,6 +312,7 @@ function requestViewLink(reset) {
 
 function onOpenMessage(raw) {
   const message = JSON.parse(raw);
+  if (onRoomMessage(message)) return;
   if (message.t === "view-link") {
     viewId.value = message.id;
     viewBusy.value = false;
@@ -346,6 +388,7 @@ function connectLocked(existingDoc) {
       lockDialog.value = false;
       start();
     },
+    onMessage: onRoomMessage,
   });
   // When we just locked it ourselves, keep the editor up while reconnecting.
   if (existingDoc.getXmlFragment("default").length) {
@@ -414,6 +457,101 @@ function rememberSoon() {
   rememberTimer = setTimeout(remember, 1500);
 }
 
+// ---- messages both kinds of room send ----
+
+// Requests that wait for the room's answer (history).
+const waiters = [];
+function waitFor(type, match = () => true) {
+  return new Promise((resolve, reject) => {
+    const waiter = { type, match, resolve };
+    waiters.push(waiter);
+    setTimeout(() => {
+      const i = waiters.indexOf(waiter);
+      if (i < 0) return;
+      waiters.splice(i, 1);
+      reject(new Error(`No ${type} answer`));
+    }, 10000);
+  });
+}
+function ask(message, type, match) {
+  const answer = waitFor(type, match);
+  provider.value.sendMessage(JSON.stringify(message));
+  return answer;
+}
+
+// Returns true when it handled the message.
+function onRoomMessage(m) {
+  const i = waiters.findIndex((w) => w.type === m.t && w.match(m));
+  if (i >= 0) {
+    waiters.splice(i, 1)[0].resolve(m);
+    return true;
+  }
+  if (m.t === "expiry") expiresAt.value = m.at;
+  else if (m.t === "expired") noteDeleted();
+  else return false;
+  return true;
+}
+
+// ---- version history ----
+
+async function loadVersions() {
+  return (await ask({ t: "versions" }, "versions")).items;
+}
+
+async function loadVersion(id) {
+  const m = await ask({ t: "version", id }, "version", (r) => r.id === id);
+  if (m.missing) throw new Error("Version is gone");
+  const bytes = m.data ? fromBase64(m.data) : await decryptBytes(keys.encryptionKey, m);
+  const version = new Y.Doc();
+  Y.applyUpdate(version, bytes);
+  return version;
+}
+
+async function restoreVersion(json) {
+  // Keep the current text first, so the restore can be undone from history too.
+  if (locked.value) {
+    const answer = waitFor("versions");
+    provider.value.keepVersion({ reply: true });
+    await answer;
+  } else {
+    await ask({ t: "keep-version" }, "versions");
+  }
+  editor.value.replaceContent(json);
+  capture("note_version_restored", { locked: locked.value });
+}
+
+// Locked notes: the server can't make copies, so this browser sends an
+// encrypted one every 10 minutes while someone edits here.
+let lastKept = 0;
+function keepEncryptedVersion() {
+  if (!locked.value || !provider.value || Date.now() - lastKept < 10 * 60 * 1000) return;
+  lastKept = Date.now();
+  provider.value.keepVersion();
+}
+
+// ---- self-destruct ----
+
+const EXPIRY = { "1h": 3600e3, "1d": 86400e3, "7d": 7 * 86400e3, "30d": 30 * 86400e3 };
+
+function setExpiry(choice) {
+  if (choice === "now") {
+    if (!confirm("Delete this note for everyone, with its history? This can't be undone.")) return;
+    provider.value.sendMessage(JSON.stringify({ t: "expire", now: true }));
+    capture("note_deleted");
+    return;
+  }
+  const at = choice === "never" ? null : Date.now() + EXPIRY[choice];
+  provider.value.sendMessage(JSON.stringify({ t: "expire", at }));
+  capture("note_expiry_set", { choice });
+}
+
+function noteDeleted() {
+  teardown();
+  forgetNote(notePath.value);
+  expiresAt.value = null;
+  phase.value = "deleted";
+}
+
 // ---- download, import, print ----
 
 function fileName(extension) {
@@ -455,6 +593,7 @@ function rename(name) {
 
 function onEdit() {
   captureOnce("note_first_edit", props.id, { locked: locked.value });
+  keepEncryptedVersion();
 }
 
 // If the editor breaks (say, on an update from another device), rebuild it
@@ -470,7 +609,10 @@ onErrorCaptured((error) => {
 });
 
 watch(notePath, start, { immediate: true });
-onBeforeUnmount(teardown);
+onBeforeUnmount(() => {
+  teardown();
+  clearInterval(clock);
+});
 </script>
 
 <style scoped>
@@ -540,6 +682,10 @@ onBeforeUnmount(teardown);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 14px;
+}
+.banner.banner--warn {
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--ink);
 }
 @media (max-width: 600px) {
   .top {
