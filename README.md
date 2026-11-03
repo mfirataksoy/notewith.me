@@ -37,6 +37,18 @@ it says.
 - **Download and import:** Markdown, HTML, plain text, print or save as PDF;
   Markdown or text files are added at the end of the note.
 
+## History and self-destruct
+
+- **Version history:** the room keeps a copy of the note every 10 minutes of
+  editing (the newest 50). For locked notes the browser sends encrypted copies
+  instead, so the history is as private as the note. Restoring is a normal edit
+  that everyone sees, and the current text is kept as a version first. Locking
+  a note deletes its readable history.
+- **Delete automatically / now:** a Durable Object alarm deletes the note at
+  the chosen time (1 hour to 30 days): text, history, read-only link and any
+  imported legacy copy. Only a "deleted" mark stays, so the address can't come
+  back with an old copy. Open tabs switch to a "deleted" screen.
+
 ## Locked notes
 
 The lock icon puts a password on a note. Everything happens in the browser
@@ -67,7 +79,9 @@ To try the import of old notes, apply the D1 schema locally
 (`npx wrangler d1 migrations apply noteful-legacy --local`) and insert a row into
 `notes` with `npx wrangler d1 execute noteful-legacy --local --command "..."`.
 
-With the Worker running, `npm run test:viewlink` checks read-only links and
+With the Worker running, `npm run test:history` checks version history and
+self-destruct (`EXPIRY_WAIT=1` also waits for a real alarm), `npm run test:viewlink`
+checks read-only links and
 `npm run test:realtime` checks the locked-note rules:
 nothing reaches a connection without the key, compaction, and the lockout after
 wrong passwords.

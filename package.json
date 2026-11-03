@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "deploy:worker": "wrangler deploy",
     "test:realtime": "node test/realtime.test.mjs",
-    "test:viewlink": "node test/viewlink.test.mjs"
+    "test:viewlink": "node test/viewlink.test.mjs",
+    "test:history": "node test/history.test.mjs"
   },
   "dependencies": {
     "@tiptap/core": "^3.32.2",

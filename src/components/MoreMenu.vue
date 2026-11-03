@@ -1,5 +1,25 @@
 <template>
   <div class="more">
+    <template v-if="!readonly">
+      <button type="button" class="more__item" @click="$emit('history')">
+        <History :size="16" /> Version history
+      </button>
+      <label class="more__item more__select">
+        <Timer :size="16" /> Delete automatically
+        <select :value="expiryChoice" aria-label="Delete automatically" @change="$emit('expire', $event.target.value)">
+          <option value="never">Never</option>
+          <option value="1h">In 1 hour</option>
+          <option value="1d">In 1 day</option>
+          <option value="7d">In 7 days</option>
+          <option value="30d">In 30 days</option>
+          <option v-if="expiryChoice === 'set'" value="set" disabled>{{ expiresLabel }}</option>
+        </select>
+      </label>
+      <button type="button" class="more__item more__danger" @click="$emit('expire', 'now')">
+        <Trash2 :size="16" /> Delete this note now
+      </button>
+    </template>
+
     <h3>Download</h3>
     <button type="button" class="more__item" @click="$emit('export', 'md')">
       <FileText :size="16" /> Markdown (.md)
@@ -26,10 +46,22 @@
 </template>
 
 <script setup>
-import { FileCode, FileText, FileType, Printer, Upload } from "lucide-vue-next";
+import { computed } from "vue";
+import { FileCode, FileText, FileType, History, Printer, Timer, Trash2, Upload } from "lucide-vue-next";
 
-defineProps({ readonly: Boolean });
-const emit = defineEmits(["export", "print", "import"]);
+const props = defineProps({
+  readonly: Boolean,
+  expiresAt: { type: Number, default: null },
+});
+const emit = defineEmits(["export", "print", "import", "history", "expire"]);
+
+// A set time shows as its own (disabled) option until it's changed.
+const expiryChoice = computed(() => (props.expiresAt ? "set" : "never"));
+const expiresLabel = computed(() =>
+  props.expiresAt
+    ? `On ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(props.expiresAt)}`
+    : ""
+);
 
 async function pick(event) {
   const file = event.target.files[0];
@@ -40,13 +72,27 @@ async function pick(event) {
 
 <style scoped>
 h3 {
-  margin: 0 0 6px;
+  margin: 14px 0 6px;
   font-size: 13px;
   color: var(--ink-soft);
   font-weight: 600;
 }
-h3:not(:first-child) {
-  margin-top: 14px;
+.more__select {
+  justify-content: space-between;
+}
+.more__select select {
+  margin-left: auto;
+  max-width: 130px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.more__danger {
+  color: var(--danger);
 }
 .more__item {
   display: flex;

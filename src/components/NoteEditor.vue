@@ -74,6 +74,10 @@ defineExpose({
   markdown: () => editor.value.getMarkdown(),
   html: () => editor.value.getHTML(),
   text: () => editor.value.getText({ blockSeparator: "\n\n" }),
+  // Restoring a version: one normal edit, so everyone sees it and it can be undone.
+  replaceContent(json) {
+    editor.value.chain().focus().setContent(json).run();
+  },
   // Adds imported Markdown at the end, so nothing anyone wrote is replaced.
   appendMarkdown(markdown) {
     const end = editor.value.state.doc.content.size;

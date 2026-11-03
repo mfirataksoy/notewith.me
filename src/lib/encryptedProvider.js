@@ -14,10 +14,11 @@ const PREFIX = "__YPS:";
  * Exposes `awareness` so Tiptap's collaboration caret can use it as a provider.
  */
 export class EncryptedProvider {
-  constructor({ room, doc, keys, onStatus, onReady, onDenied, onUnlocked }) {
+  constructor({ room, doc, keys, onStatus, onReady, onDenied, onUnlocked, onMessage }) {
     this.doc = doc;
     this.keys = keys;
-    this.callbacks = { onStatus, onReady, onDenied, onUnlocked };
+    // onMessage gets everything else the room sends (history, self-destruct).
+    this.callbacks = { onStatus, onReady, onDenied, onUnlocked, onMessage };
     this.ready = false;
     // Local updates made before the room accepted us (or while offline).
     this.pending = [];
@@ -107,7 +108,19 @@ export class EncryptedProvider {
       if (this.callbacks.onDenied) this.callbacks.onDenied(m);
     } else if (m.t === "unlocked") {
       if (this.callbacks.onUnlocked) this.callbacks.onUnlocked();
+    } else if (this.callbacks.onMessage) {
+      this.callbacks.onMessage(m);
     }
+  }
+
+  // Same name as the Yjs provider's, so the note page can talk to either room.
+  sendMessage(text) {
+    this.send(JSON.parse(text));
+  }
+
+  // Saves an encrypted copy of the note in its history.
+  keepVersion({ reply = false } = {}) {
+    return this.sendEncrypted("keep-version", Y.encodeStateAsUpdate(this.doc), { reply });
   }
 
   // Sends the decrypted note back so the server can store it unencrypted.
