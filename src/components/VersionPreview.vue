@@ -9,6 +9,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
 import Collaboration from "@tiptap/extension-collaboration";
+import { TableKit } from "@tiptap/extension-table";
 
 // Shows an old version read-only, from its own Yjs document.
 const props = defineProps({ doc: { type: Object, required: true } });
@@ -19,6 +20,7 @@ const editor = useEditor({
     Highlight,
     TaskList,
     TaskItem.configure({ nested: true }),
+    TableKit.configure({ table: { resizable: false } }),
     Collaboration.configure({ document: props.doc }),
   ],
   editable: false,

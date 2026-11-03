@@ -14,6 +14,8 @@ import Highlight from "@tiptap/extension-highlight";
 import { TaskList, TaskItem } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
 import { Markdown } from "@tiptap/markdown";
+import { TableKit } from "@tiptap/extension-table";
+import { SlashCommands } from "../lib/slashCommands";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { ySyncPluginKey } from "@tiptap/y-tiptap";
@@ -38,12 +40,15 @@ const editor = useEditor({
     TaskList,
     TaskItem.configure({ nested: true }),
     Placeholder.configure({
-      placeholder: "Start typing. Everyone with the link sees it live.",
+      placeholder: "Start typing, or press / for headings, lists and tables. Everyone with the link sees it live.",
     }),
     Collaboration.configure({ document: props.doc }),
     CollaborationCaret.configure({ provider: props.provider, user: props.user }),
+    TableKit.configure({ table: { resizable: false } }),
     // Markdown in and out (export, import, pasting .md files).
     Markdown,
+    // "/" menu for inserting blocks; read-only links can't insert anything.
+    ...(props.readonly ? [] : [SlashCommands]),
   ],
   editable: !props.readonly,
   autofocus: !props.readonly,
