@@ -1,4 +1,4 @@
-import { routePartykitRequest } from "partyserver";
+import { getServerByName, routePartykitRequest } from "partyserver";
 
 export { NoteRoom } from "./room.js";
 
@@ -14,6 +14,25 @@ const ORIGINS = [
 function allowed(origin, env) {
   const extra = (env.EXTRA_ORIGINS || "").split(",").map((o) => o.trim());
   return ORIGINS.some((o) => o.test(origin)) || extra.includes(origin);
+}
+
+// A read-only link (/v/<id> in the app) connects through /view/<id>. The note's
+// own name never reaches the viewer: the Worker finds it in D1 and marks the
+// connection read-only for the room.
+async function routeView(request, env, viewId, cors) {
+  const note = await env.LEGACY_DB.prepare("SELECT note FROM view_links WHERE view_id = ?1")
+    .bind(viewId)
+    .first("note");
+  const isSocket = request.headers.get("Upgrade")?.toLowerCase() === "websocket";
+  if (!isSocket) {
+    return Response.json({ ok: !!note }, { status: note ? 200 : 404, headers: cors || {} });
+  }
+  if (!note) return new Response("Not found", { status: 404 });
+  const room = await getServerByName(env.NoteRoom, note);
+  const headers = new Headers(request.headers);
+  headers.set("x-noteful-view", viewId);
+  headers.set("x-partykit-room", note);
+  return room.fetch(new Request(request.url, { method: request.method, headers }));
 }
 
 export default {
@@ -32,6 +51,11 @@ export default {
           Vary: "Origin",
         }
       : false;
+    const view = new URL(request.url).pathname.match(/^\/view\/([A-Za-z0-9_-]{12,32})$/);
+    if (view) {
+      if (request.method === "OPTIONS") return new Response(null, { headers: cors || {} });
+      return routeView(request, env, view[1], cors);
+    }
     return (
       (await routePartykitRequest(request, env, { cors })) ||
       new Response("Not found", { status: 404 })

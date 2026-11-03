@@ -12,13 +12,50 @@
           :user="user"
           @rename="rename"
         />
-        <button type="button" class="btn" @click="copyLink">
-          <Check v-if="copied" :size="16" />
-          <Link2 v-else :size="16" />
-          <span class="share-label">{{ copied ? "Copied" : "Share" }}</span>
-        </button>
+        <DropMenu label="Your notes">
+          <template #trigger="{ toggle }">
+            <button type="button" class="btn btn--icon" title="Your notes" aria-label="Your notes" @click="toggle">
+              <NotebookText :size="16" />
+            </button>
+          </template>
+          <template #default="{ close }">
+            <NotesMenu :current="notePath" @navigate="close" />
+          </template>
+        </DropMenu>
+        <DropMenu label="Share">
+          <template #trigger="{ toggle }">
+            <button type="button" class="btn" @click="toggle">
+              <Link2 :size="16" />
+              <span class="share-label">Share</span>
+            </button>
+          </template>
+          <SharePanel
+            :edit-url="editUrl"
+            :view-url="viewUrl"
+            :locked="locked"
+            :readonly="readonly"
+            :busy="viewBusy"
+            :error="viewError"
+            @view-link="requestViewLink"
+          />
+        </DropMenu>
+        <DropMenu v-if="phase === 'editor'" label="More">
+          <template #trigger="{ toggle }">
+            <button type="button" class="btn btn--icon" title="Download, import, print" aria-label="More" @click="toggle">
+              <Ellipsis :size="16" />
+            </button>
+          </template>
+          <template #default="{ close }">
+            <MoreMenu
+              :readonly="readonly"
+              @export="(kind) => (exportNote(kind), close())"
+              @print="close(), printNote()"
+              @import="(text) => (importFile(text), close())"
+            />
+          </template>
+        </DropMenu>
         <button
-          v-if="phase === 'editor'"
+          v-if="phase === 'editor' && !readonly"
           type="button"
           class="btn btn--icon"
           :class="{ 'is-locked': locked }"
@@ -33,6 +70,9 @@
     </header>
 
     <main class="sheet">
+      <p v-if="readonly && phase === 'editor'" class="banner">
+        <Eye :size="14" /> View only. Changes show up live, but this link can't edit.
+      </p>
       <p v-if="locked && phase === 'editor'" class="banner">
         <Lock :size="14" /> End-to-end encrypted. Only people with the password can read this note.
       </p>
@@ -49,8 +89,10 @@
         :doc="doc"
         :provider="provider"
         :user="user"
+        :readonly="readonly"
         @ready="onEditorReady"
         @edit="onEdit"
+        @change="rememberSoon"
       />
     </main>
 
@@ -70,20 +112,31 @@
 <script setup>
 import { computed, onBeforeUnmount, onErrorCaptured, ref, shallowRef, watch } from "vue";
 import * as Y from "yjs";
-import { Check, Link2, Lock, LockOpen } from "lucide-vue-next";
+import { Ellipsis, Eye, Link2, Lock, LockOpen, NotebookText } from "lucide-vue-next";
 import NoteEditor from "../components/NoteEditor.vue";
 import PresenceBar from "../components/PresenceBar.vue";
 import LockDialog from "../components/LockDialog.vue";
 import UnlockCard from "../components/UnlockCard.vue";
 import AppFooter from "../components/AppFooter.vue";
-import { fetchNoteInfo, openProvider } from "../lib/party";
+import DropMenu from "../components/DropMenu.vue";
+import SharePanel from "../components/SharePanel.vue";
+import NotesMenu from "../components/NotesMenu.vue";
+import MoreMenu from "../components/MoreMenu.vue";
+import { fetchNoteInfo, openProvider, viewLinkWorks, viewProvider } from "../lib/party";
+import { rememberNote } from "../lib/recentNotes";
 import { EncryptedProvider } from "../lib/encryptedProvider";
 import { ITERATIONS, deriveKeys, encryptBytes, newSalt } from "../lib/noteCrypto";
 import { loadUser, saveUser } from "../lib/identity";
 import { capture, captureOnce } from "../lib/analytics";
 import { reportError } from "../lib/crash";
 
-const props = defineProps({ id: { type: String, required: true } });
+// /<id> opens a note to edit; /v/<viewId> opens it through a read-only link.
+const props = defineProps({
+  id: { type: String, default: "" },
+  viewId: { type: String, default: "" },
+});
+const readonly = computed(() => !!props.viewId);
+const notePath = computed(() => (readonly.value ? `/v/${props.viewId}` : `/${props.id}`));
 
 // loading → editor, or loading → unlock → editor for locked notes.
 const phase = ref("loading");
@@ -104,7 +157,15 @@ let pendingLegacy = null;
 const lockDialog = ref(false);
 const busy = ref(false);
 const lockError = ref("");
-const copied = ref(false);
+// The read-only link, once one exists.
+const viewId = ref("");
+const viewBusy = ref(false);
+const viewError = ref("");
+const editUrl = computed(() => (readonly.value ? "" : `${location.origin}/${props.id}`));
+const viewUrl = computed(() => {
+  const id = readonly.value ? props.viewId : viewId.value;
+  return id ? `${location.origin}/v/${id}` : "";
+});
 
 const statusText = computed(
   () =>
@@ -124,6 +185,8 @@ async function start() {
   teardown();
   phase.value = "loading";
   lockError.value = "";
+  viewId.value = "";
+  if (readonly.value) return startView();
   try {
     info = await fetchNoteInfo(props.id);
   } catch {
@@ -132,6 +195,7 @@ async function start() {
     return;
   }
   locked.value = info.locked;
+  viewId.value = info.viewId || "";
   if (!info.locked) {
     keys = null;
     connectOpen();
@@ -153,6 +217,7 @@ function connectOpen() {
   p.on("synced", (synced) => {
     if (!synced) return;
     status.value = "live";
+    remember();
     captureOnce("note_opened", props.id, { is_new: doc.getXmlFragment("default").length === 0 });
   });
   p.on("custom-message", onOpenMessage);
@@ -161,9 +226,58 @@ function connectOpen() {
   phase.value = "editor";
 }
 
+// ---- read-only links ----
+
+async function startView() {
+  let works;
+  try {
+    works = await viewLinkWorks(props.viewId);
+  } catch {
+    errorText.value = "Can't reach the notes server right now.";
+    phase.value = "error";
+    return;
+  }
+  if (!works) return viewGone();
+  doc = new Y.Doc();
+  const p = viewProvider(props.viewId, doc);
+  p.on("status", ({ status: s }) => {
+    status.value = s === "connected" ? (p.synced ? "live" : "connecting") : s;
+  });
+  p.on("synced", (synced) => {
+    if (!synced) return;
+    status.value = "live";
+    remember();
+    captureOnce("note_opened", props.viewId, { readonly: true });
+  });
+  // 4004: the note was locked or its read-only link replaced.
+  p.on("connection-close", (event) => event && event.code === 4004 && viewGone());
+  provider.value = p;
+  session.value++;
+  phase.value = "editor";
+}
+
+function viewGone() {
+  teardown();
+  errorText.value = "This read-only link doesn't work any more. Ask for a new one.";
+  phase.value = "error";
+}
+
+function requestViewLink(reset) {
+  viewBusy.value = true;
+  viewError.value = "";
+  provider.value.sendMessage(JSON.stringify({ t: "view-link", reset }));
+  capture(reset ? "note_view_link_replaced" : "note_view_link_created");
+}
+
 function onOpenMessage(raw) {
   const message = JSON.parse(raw);
-  if (message.t === "legacy") {
+  if (message.t === "view-link") {
+    viewId.value = message.id;
+    viewBusy.value = false;
+  } else if (message.t === "view-link-failed") {
+    viewBusy.value = false;
+    viewError.value = "Couldn't create the link. Please try again.";
+  } else if (message.t === "legacy") {
     pendingLegacy = message.html;
     importLegacy();
   } else if (message.t === "locked") {
@@ -215,6 +329,7 @@ function connectLocked(existingDoc) {
       if (phase.value !== "editor") {
         session.value++;
         phase.value = "editor";
+        remember();
         captureOnce("note_opened", props.id, { is_new: false, locked: true });
       }
     },
@@ -288,11 +403,49 @@ function removePassword() {
 
 // ---- small things ----
 
-async function copyLink() {
-  await navigator.clipboard.writeText(`${location.origin}/${props.id}`);
-  copied.value = true;
-  capture("note_link_copied");
-  setTimeout(() => (copied.value = false), 1800);
+// Keeps this note in the "Your notes" list with its first line as the title.
+function remember() {
+  const title = editor.value ? editor.value.title() : "";
+  rememberNote(notePath.value, { title, locked: locked.value, readonly: readonly.value });
+}
+let rememberTimer = null;
+function rememberSoon() {
+  clearTimeout(rememberTimer);
+  rememberTimer = setTimeout(remember, 1500);
+}
+
+// ---- download, import, print ----
+
+function fileName(extension) {
+  const title = (editor.value && editor.value.title()) || "note";
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 50);
+  return `${slug || "note"}.${extension}`;
+}
+
+function exportNote(kind) {
+  const e = editor.value;
+  const files = {
+    md: () => [e.markdown(), "text/markdown"],
+    html: () => [`<!doctype html><meta charset="utf-8"><title>${fileName("html")}</title>${e.html()}`, "text/html"],
+    txt: () => [e.text(), "text/plain"],
+  };
+  const [content, type] = files[kind]();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([content], { type: `${type};charset=utf-8` }));
+  link.download = fileName(kind);
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  capture("note_exported", { format: kind });
+}
+
+function printNote() {
+  capture("note_exported", { format: "print" });
+  window.print();
+}
+
+function importFile(text) {
+  editor.value.appendMarkdown(text);
+  capture("note_imported");
 }
 
 function rename(name) {
@@ -316,7 +469,7 @@ onErrorCaptured((error) => {
   return false;
 });
 
-watch(() => props.id, start, { immediate: true });
+watch(notePath, start, { immediate: true });
 onBeforeUnmount(teardown);
 </script>
 

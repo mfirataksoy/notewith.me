@@ -261,3 +261,28 @@ button {
   white-space: nowrap;
   user-select: none;
 }
+
+/* Print / Save as PDF: just the note. */
+@media print {
+  :root {
+    --bg: #fff;
+    --ink: #000;
+    color-scheme: light;
+  }
+  .top,
+  .toolbar,
+  .banner,
+  .footer,
+  #firat-chat,
+  .collaboration-carets__caret {
+    display: none !important;
+  }
+  .sheet {
+    max-width: none;
+    padding: 0;
+  }
+  .tiptap {
+    min-height: 0;
+    padding: 0;
+  }
+}

@@ -25,6 +25,18 @@ it says.
   `scripts/export-legacy-notes.cjs`). The first time an old note is opened, its
   room reads the HTML from D1 and hands it to that browser, which imports it.
 
+## Sharing and your notes
+
+- **Your notes:** the notes you open are listed in this browser (localStorage
+  only; locked notes keep no title), so a lost link isn't a lost note.
+- **Read-only links:** `/v/<id>` shows a note live without edit rights. The
+  Worker maps the id to the note in D1 (`view_links`), so the viewer never sees
+  the edit link, and the room marks the connection read-only, so Yjs ignores
+  its edits. Replacing the link or locking the note ends it.
+- **QR codes** for the edit and read-only links, to continue on a phone.
+- **Download and import:** Markdown, HTML, plain text, print or save as PDF;
+  Markdown or text files are added at the end of the note.
+
 ## Locked notes
 
 The lock icon puts a password on a note. Everything happens in the browser
@@ -55,13 +67,16 @@ To try the import of old notes, apply the D1 schema locally
 (`npx wrangler d1 migrations apply noteful-legacy --local`) and insert a row into
 `notes` with `npx wrangler d1 execute noteful-legacy --local --command "..."`.
 
-With the Worker running, `npm run test:realtime` checks the locked-note rules:
+With the Worker running, `npm run test:viewlink` checks read-only links and
+`npm run test:realtime` checks the locked-note rules:
 nothing reaches a connection without the key, compaction, and the lockout after
 wrong passwords.
 
 ## Deploy
 
-1. `npm run deploy:worker` publishes the Worker to `live.noteful.me` (host set
+1. New D1 tables first: `npx wrangler d1 migrations apply noteful-legacy --remote`
+   (the database also holds `view_links`).
+2. `npm run deploy:worker` publishes the Worker to `live.noteful.me` (host set
    in `.env.production`). Deploy it first when a change touches both.
-2. Cloudflare Pages builds the app from `main` with `npm run build` (output
+3. Cloudflare Pages builds the app from `main` with `npm run build` (output
    `dist/`). The SPA fallback needs no config: there is no `404.html`.
