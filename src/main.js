@@ -5,6 +5,7 @@ import Home from "./views/Home.vue";
 import Note from "./views/Note.vue";
 import { initAnalytics } from "./lib/analytics";
 import { isChunkError, reportError } from "./lib/crash";
+import { registerSW } from "virtual:pwa-register";
 import "./style.css";
 
 const router = createRouter({
@@ -43,3 +44,6 @@ app.config.errorHandler = (error, _instance, info) => reportError(error, `vue:${
 window.addEventListener("error", (event) => reportError(event.error || event.message, "window"));
 window.addEventListener("unhandledrejection", (event) => reportError(event.reason, "promise"));
 app.use(router).mount("#app");
+
+// Offline app shell (production builds only); updates apply on the next load.
+if (import.meta.env.PROD) registerSW({ immediate: true });

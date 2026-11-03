@@ -13,8 +13,12 @@ it says.
 ## How it works
 
 - **Editor:** Vue 3 and [Tiptap](https://tiptap.dev) (ProseMirror) with markdown
-  shortcuts (`#`, `-`, `1.`, `[]`, `>`, ```` ``` ````), checklists, highlights and
-  code blocks.
+  shortcuts (`#`, `-`, `1.`, `[]`, `>`, ```` ``` ````), checklists, highlights,
+  code blocks and tables. Type `/` for a menu of blocks (`src/lib/slashCommands.js`).
+- **Offline and installable:** a service worker (`vite-plugin-pwa`) keeps the app
+  shell, and open notes keep a Yjs copy in IndexedDB (`src/lib/localCopy.js`), so
+  notes you've opened before open without a connection and offline edits sync
+  when it's back. Locked notes are never stored on the device unencrypted.
 - **Real time:** the note is a [Yjs](https://yjs.dev) document (a CRDT). Each note
   is its own Cloudflare Durable Object (`worker/room.js`, built on
   `y-partyserver`) that browsers reach over WebSocket. It merges updates, relays

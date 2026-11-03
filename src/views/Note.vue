@@ -142,7 +142,8 @@ import NotesMenu from "../components/NotesMenu.vue";
 import MoreMenu from "../components/MoreMenu.vue";
 import HistoryPanel from "../components/HistoryPanel.vue";
 import { fetchNoteInfo, openProvider, viewLinkWorks, viewProvider } from "../lib/party";
-import { forgetNote, rememberNote } from "../lib/recentNotes";
+import { forgetNote, listNotes, rememberNote } from "../lib/recentNotes";
+import { dropLocalCopy, keepLocalCopy } from "../lib/localCopy";
 import { EncryptedProvider } from "../lib/encryptedProvider";
 import { ITERATIONS, decryptBytes, deriveKeys, encryptBytes, fromBase64, newSalt } from "../lib/noteCrypto";
 import { loadUser, saveUser } from "../lib/identity";
@@ -210,9 +211,13 @@ const statusText = computed(
     })[status.value]
 );
 
+let localCopy = null;
+
 function teardown() {
   if (provider.value) provider.value.destroy();
   provider.value = null;
+  if (localCopy) localCopy.destroy();
+  localCopy = null;
 }
 
 async function start() {
@@ -224,12 +229,21 @@ async function start() {
   try {
     info = await fetchNoteInfo(props.id);
   } catch {
-    errorText.value = "Can't reach the notes server right now.";
+    // Offline: an open note this browser has seen opens from its local copy.
+    const known = listNotes().find((n) => n.path === notePath.value);
+    if (known && !known.locked) {
+      locked.value = false;
+      return connectOpen();
+    }
+    errorText.value = navigator.onLine
+      ? "Can't reach the notes server right now."
+      : "You're offline. Notes you opened in this browser before still open offline.";
     phase.value = "error";
     return;
   }
   if (info.deleted) return noteDeleted();
   locked.value = info.locked;
+  if (info.locked) dropLocalCopy(props.id);
   viewId.value = info.viewId || "";
   expiresAt.value = info.expiresAt || null;
   if (!info.locked) {
@@ -246,6 +260,7 @@ async function start() {
 
 function connectOpen() {
   doc = new Y.Doc();
+  localCopy = keepLocalCopy(props.id, doc);
   const p = openProvider(props.id, doc);
   p.on("status", ({ status: s }) => {
     status.value = s === "connected" ? (p.synced ? "live" : "connecting") : s;
@@ -257,7 +272,12 @@ function connectOpen() {
     captureOnce("note_opened", props.id, { is_new: doc.getXmlFragment("default").length === 0 });
   });
   p.on("custom-message", onOpenMessage);
-  p.on("connection-close", (event) => event && event.code === 4005 && noteDeleted());
+  // Failed or dropped connections retry quietly; say so instead of "Connecting…".
+  p.on("connection-error", () => (status.value = "disconnected"));
+  p.on("connection-close", (event) => {
+    status.value = "disconnected";
+    if (event && event.code === 4005) noteDeleted();
+  });
   provider.value = p;
   session.value++;
   phase.value = "editor";
@@ -329,6 +349,7 @@ function onOpenMessage(raw) {
       pendingLock = null;
       locked.value = true;
       teardown();
+      dropLocalCopy(props.id);
       connectLocked(doc);
       busy.value = false;
       lockDialog.value = false;
@@ -547,6 +568,7 @@ function setExpiry(choice) {
 
 function noteDeleted() {
   teardown();
+  if (!readonly.value) dropLocalCopy(props.id);
   forgetNote(notePath.value);
   expiresAt.value = null;
   phase.value = "deleted";

@@ -230,6 +230,35 @@ button {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.tiptap table {
+  width: 100%;
+  margin: 0.8em 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  overflow: hidden;
+}
+.tiptap th,
+.tiptap td {
+  min-width: 60px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  vertical-align: top;
+}
+.tiptap th {
+  background: var(--surface);
+  font-weight: 600;
+  text-align: left;
+}
+.tiptap th > p,
+.tiptap td > p {
+  margin: 0;
+}
+.tiptap .selectedCell {
+  background: var(--accent-soft);
+}
+.tableWrapper {
+  overflow-x: auto;
+}
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
