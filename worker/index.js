@@ -35,6 +35,41 @@ async function routeView(request, env, viewId, cors) {
   return room.fetch(new Request(request.url, { method: request.method, headers }));
 }
 
+const UPLOADS_PER_MINUTE = 6;
+const UPLOADS_PER_HOUR = 40;
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Image uploads per visitor: UPLOADS_PER_MINUTE a minute and UPLOADS_PER_HOUR
+// an hour, counted in D1 (exact, unlike Cloudflare's approximate rate limiter).
+// Returns a response when the visitor is over.
+async function limitUploads(request, env, cors) {
+  const ip = request.headers.get("CF-Connecting-IP") || "local";
+  // The IP is only kept as a hash that changes every day.
+  const who = (await sha256Hex(`${ip}|${new Date().toISOString().slice(0, 10)}`)).slice(0, 32);
+  const minute = Math.floor(Date.now() / 60e3);
+  const hour = Math.floor(minute / 60);
+  const count = env.LEGACY_DB.prepare(
+    "INSERT INTO upload_counts (who, hour, n) VALUES (?1, ?2, 1) ON CONFLICT (who, hour) DO UPDATE SET n = n + 1 RETURNING n"
+  );
+  // Minute counters share the table under "<hash>:m", with the minute in `hour`.
+  const [perHour, perMinute] = await env.LEGACY_DB.batch([count.bind(who, hour), count.bind(`${who}:m`, minute)]);
+  if (Math.random() < 0.02) {
+    await env.LEGACY_DB.prepare(
+      "DELETE FROM upload_counts WHERE (who LIKE '%:m' AND hour < ?1) OR (who NOT LIKE '%:m' AND hour < ?2)"
+    )
+      .bind(minute - 10, hour - 48)
+      .run();
+  }
+  if (perMinute.results[0].n > UPLOADS_PER_MINUTE || perHour.results[0].n > UPLOADS_PER_HOUR) {
+    return Response.json({ error: "slow down" }, { status: 429, headers: { "Retry-After": "60", ...(cors || {}) } });
+  }
+  return null;
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
@@ -46,12 +81,31 @@ export default {
     const cors = origin
       ? {
           "Access-Control-Allow-Origin": origin,
-          "Access-Control-Allow-Methods": "GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, X-Note-Key",
           Vary: "Origin",
         }
       : false;
-    const view = new URL(request.url).pathname.match(/^\/view\/([A-Za-z0-9_-]{12,32})$/);
+    const path = new URL(request.url).pathname;
+    // Images are ciphertext; their ids are unguessable and their keys are in the note.
+    const image = path.match(/^\/img\/([A-Za-z0-9_-]{22})$/);
+    if (image) {
+      if (request.method === "OPTIONS") return new Response(null, { headers: cors || {} });
+      const object = await env.IMAGES.get(image[1]);
+      if (!object) return new Response("Not found", { status: 404, headers: cors || {} });
+      return new Response(object.body, {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Cache-Control": "public, max-age=31536000, immutable",
+          ...(cors || {}),
+        },
+      });
+    }
+    if (request.method === "POST" && /^\/parties\/note-room\/[^/]+\/images$/.test(path)) {
+      const limited = await limitUploads(request, env, cors);
+      if (limited) return limited;
+    }
+    const view = path.match(/^\/view\/([A-Za-z0-9_-]{12,32})$/);
     if (view) {
       if (request.method === "OPTIONS") return new Response(null, { headers: cors || {} });
       return routeView(request, env, view[1], cors);

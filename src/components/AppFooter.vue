@@ -18,8 +18,16 @@
     </a>
     <span aria-hidden="true">·</span>
     <a class="privacy" href="/kvkk/">Privacy · KVKK</a>
+    <span aria-hidden="true">·</span>
+    <a class="privacy" :href="reportHref">Report abuse</a>
   </footer>
 </template>
+
+<script setup>
+import { abuseReportHref } from "../lib/abuse";
+
+const reportHref = abuseReportHref();
+</script>
 
 <style scoped>
 .footer {

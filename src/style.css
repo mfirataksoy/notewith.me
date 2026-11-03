@@ -259,6 +259,30 @@ button {
 .tableWrapper {
   overflow-x: auto;
 }
+.tiptap img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.6em 0;
+  border-radius: 8px;
+}
+.tiptap img.is-loading {
+  min-height: 120px;
+  background: var(--surface);
+}
+.tiptap img.is-broken {
+  min-height: 60px;
+  background: var(--surface);
+  outline: 1px dashed var(--line);
+}
+.tiptap img.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+}
+.tiptap .comment-mark {
+  background: color-mix(in srgb, var(--mark) 55%, transparent);
+  border-bottom: 2px solid var(--warn);
+  cursor: pointer;
+}
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;

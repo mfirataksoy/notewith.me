@@ -12,6 +12,18 @@
           :user="user"
           @rename="rename"
         />
+        <button
+          v-if="phase === 'editor'"
+          type="button"
+          class="btn btn--icon comments-btn"
+          :class="{ 'is-on': commentsOpen }"
+          :title="`Comments (${openThreadCount})`"
+          aria-label="Comments"
+          @click="commentsOpen = !commentsOpen"
+        >
+          <MessageSquare :size="16" />
+          <span v-if="openThreadCount" class="comments-btn__count">{{ openThreadCount }}</span>
+        </button>
         <DropMenu label="Your notes">
           <template #trigger="{ toggle }">
             <button type="button" class="btn btn--icon" title="Your notes" aria-label="Your notes" @click="toggle">
@@ -49,6 +61,7 @@
             <MoreMenu
               :readonly="readonly"
               :expires-at="expiresAt"
+              :note-url="readonly ? viewUrl : editUrl"
               @history="close(), (historyOpen = true)"
               @expire="(choice) => (close(), setExpiry(choice))"
               @export="(kind) => (exportNote(kind), close())"
@@ -82,6 +95,10 @@
       <p v-if="expiresAt && phase === 'editor'" class="banner banner--warn">
         <Timer :size="14" /> This note deletes itself {{ expiresIn }}.
       </p>
+      <p v-if="imageState.uploading || imageState.error" class="banner" :class="{ 'banner--warn': imageState.error }">
+        <ImagePlus :size="14" />
+        {{ imageState.error || (imageState.uploading > 1 ? `Uploading ${imageState.uploading} images…` : "Uploading image…") }}
+      </p>
       <p v-if="phase === 'loading'" class="loading">Opening note…</p>
       <div v-else-if="phase === 'deleted'" class="loading">
         <p>This note was deleted. Its text and history are gone.</p>
@@ -100,13 +117,32 @@
         :provider="provider"
         :user="user"
         :readonly="readonly"
+        :upload-image="uploadNoteImage"
         @ready="onEditorReady"
+        @comment="startComment"
+        @open-thread="openThread"
+        @images="onImages"
         @edit="onEdit"
         @change="rememberSoon"
       />
     </main>
 
     <AppFooter />
+
+    <CommentsPanel
+      :open="commentsOpen && phase === 'editor'"
+      :threads="threads"
+      :active="activeThread"
+      :draft="commentDraft"
+      :readonly="readonly"
+      @close="commentsOpen = false"
+      @add="addComment"
+      @cancel-draft="commentDraft = null"
+      @reply="replyTo"
+      @resolve="resolveThread"
+      @remove="removeThread"
+      @focus="focusThread"
+    />
 
     <HistoryPanel
       v-model="historyOpen"
@@ -130,7 +166,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onErrorCaptured, ref, shallowRef, watch } from "vue";
 import * as Y from "yjs";
-import { Ellipsis, Eye, Link2, Lock, LockOpen, NotebookText, Timer } from "lucide-vue-next";
+import { Ellipsis, Eye, ImagePlus, Link2, Lock, LockOpen, MessageSquare, NotebookText, Timer } from "lucide-vue-next";
 import NoteEditor from "../components/NoteEditor.vue";
 import PresenceBar from "../components/PresenceBar.vue";
 import LockDialog from "../components/LockDialog.vue";
@@ -141,6 +177,9 @@ import SharePanel from "../components/SharePanel.vue";
 import NotesMenu from "../components/NotesMenu.vue";
 import MoreMenu from "../components/MoreMenu.vue";
 import HistoryPanel from "../components/HistoryPanel.vue";
+import CommentsPanel from "../components/CommentsPanel.vue";
+import { addThread, deleteThread, message, newThreadId, reply, setResolved, watchThreads } from "../lib/comments";
+import { uploadImage } from "../lib/images";
 import { fetchNoteInfo, openProvider, viewLinkWorks, viewProvider } from "../lib/party";
 import { forgetNote, listNotes, rememberNote } from "../lib/recentNotes";
 import { dropLocalCopy, keepLocalCopy } from "../lib/localCopy";
@@ -212,8 +251,11 @@ const statusText = computed(
 );
 
 let localCopy = null;
+let stopThreads = null;
 
 function teardown() {
+  if (stopThreads) stopThreads();
+  stopThreads = null;
   if (provider.value) provider.value.destroy();
   provider.value = null;
   if (localCopy) localCopy.destroy();
@@ -260,6 +302,7 @@ async function start() {
 
 function connectOpen() {
   doc = new Y.Doc();
+  bindComments();
   localCopy = keepLocalCopy(props.id, doc);
   const p = openProvider(props.id, doc);
   p.on("status", ({ status: s }) => {
@@ -296,6 +339,7 @@ async function startView() {
   }
   if (!works) return viewGone();
   doc = new Y.Doc();
+  bindComments();
   const p = viewProvider(props.viewId, doc);
   p.on("status", ({ status: s }) => {
     status.value = s === "connected" ? (p.synced ? "live" : "connecting") : s;
@@ -382,6 +426,7 @@ function importLegacy() {
 
 function connectLocked(existingDoc) {
   doc = existingDoc;
+  bindComments();
   provider.value = new EncryptedProvider({
     room: props.id,
     doc,
@@ -574,6 +619,75 @@ function noteDeleted() {
   phase.value = "deleted";
 }
 
+// ---- comments ----
+
+const commentsOpen = ref(false);
+const threads = ref([]);
+const activeThread = ref("");
+// { from, to, quote } while a new comment is being written.
+const commentDraft = ref(null);
+const openThreadCount = computed(() => threads.value.filter((t) => !t.resolved).length);
+
+function bindComments() {
+  if (stopThreads) stopThreads();
+  stopThreads = watchThreads(doc, (list) => (threads.value = list));
+}
+
+function startComment(range) {
+  commentDraft.value = range;
+  commentsOpen.value = true;
+}
+
+function addComment(text) {
+  const id = newThreadId();
+  editor.value.addCommentMark(commentDraft.value, id);
+  addThread(doc, id, commentDraft.value.quote, message(user.value, text));
+  commentDraft.value = null;
+  activeThread.value = id;
+  capture("comment_added", { locked: locked.value });
+}
+
+function replyTo(id, text) {
+  reply(doc, id, message(user.value, text));
+  capture("comment_replied");
+}
+
+function resolveThread(id) {
+  setResolved(doc, id, true);
+  editor.value.removeCommentMark(id);
+}
+
+function removeThread(id) {
+  editor.value.removeCommentMark(id);
+  deleteThread(doc, id);
+}
+
+function focusThread(id) {
+  activeThread.value = id;
+  editor.value.focusThread(id);
+}
+
+function openThread(id) {
+  commentsOpen.value = true;
+  activeThread.value = id;
+}
+
+// ---- images ----
+
+const imageState = ref({ uploading: 0, error: "" });
+let imageErrorTimer = null;
+
+function uploadNoteImage(file) {
+  capture("image_added", { locked: locked.value });
+  return uploadImage(file, { noteId: props.id, authKey: locked.value && keys ? keys.authKey : null });
+}
+
+function onImages(state) {
+  imageState.value = state;
+  clearTimeout(imageErrorTimer);
+  if (state.error) imageErrorTimer = setTimeout(() => (imageState.value = { uploading: 0, error: "" }), 6000);
+}
+
 // ---- download, import, print ----
 
 function fileName(extension) {
@@ -704,6 +818,27 @@ onBeforeUnmount(() => {
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 14px;
+}
+.comments-btn {
+  position: relative;
+}
+.comments-btn.is-on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.comments-btn__count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 17px;
 }
 .banner.banner--warn {
   background: color-mix(in srgb, var(--warn) 16%, transparent);
