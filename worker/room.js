@@ -24,6 +24,12 @@ async function sha256(text) {
 const toHex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 const fromHex = (hex) => Uint8Array.from(hex.match(/../g) || [], (h) => parseInt(h, 16));
 const fromBase64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+// 16 random bytes as base64url: the id in a read-only link.
+const newViewId = () =>
+  btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 
 /**
  * One note. An open note is a normal Yjs document that the server keeps,
@@ -98,6 +104,13 @@ export class NoteRoom extends YServer {
   }
 
   onConnect(conn, ctx) {
+    // Set by worker/index.js when the connection came through a read-only link.
+    const viewId = ctx.request.headers.get("x-noteful-view");
+    if (viewId) {
+      if (this.isLocked() || this.meta("viewId") !== viewId) return conn.close(4004, "gone");
+      conn.setState({ readonly: true });
+      return super.onConnect(conn, ctx);
+    }
     if (this.isLocked()) {
       // Nothing is sent until the connection authenticates.
       conn.setState({ locked: true });
@@ -136,14 +149,49 @@ export class NoteRoom extends YServer {
     super.onMessage(conn, message);
   }
 
+  // Yjs ignores document updates from read-only connections (cursors still work).
+  isReadOnly(conn) {
+    return !!(conn.state && conn.state.readonly);
+  }
+
   onCustomMessage(conn, raw) {
     const message = parse(raw);
-    if (message && message.t === "lock") {
+    if (!message || this.isReadOnly(conn)) return;
+    if (message.t === "view-link") {
+      this.viewLink(conn, message.reset === true).catch((error) => {
+        console.error("view link failed", error);
+        this.send(conn, { t: "view-link-failed" });
+      });
+    } else if (message.t === "lock") {
       this.lock(conn, message).catch((error) => {
         console.error("lock failed", error);
         this.send(conn, { t: "lock-failed" });
       });
     }
+  }
+
+  // Creates (or with reset, replaces) the note's read-only link.
+  async viewLink(conn, reset) {
+    let viewId = this.meta("viewId");
+    if (reset && viewId) {
+      await this.env.LEGACY_DB.prepare("DELETE FROM view_links WHERE note = ?1").bind(this.name).run();
+      for (const c of this.getConnections()) if (this.isReadOnly(c)) c.close(4004, "gone");
+      viewId = null;
+    }
+    if (!viewId) {
+      viewId = newViewId();
+      await this.env.LEGACY_DB.prepare("INSERT OR REPLACE INTO view_links (view_id, note) VALUES (?1, ?2)")
+        .bind(viewId, this.name)
+        .run();
+      this.setMeta("viewId", viewId);
+    }
+    this.send(conn, { t: "view-link", id: viewId });
+  }
+
+  async dropViewLink() {
+    if (!this.meta("viewId")) return;
+    await this.env.LEGACY_DB.prepare("DELETE FROM view_links WHERE note = ?1").bind(this.name).run();
+    this.setMeta("viewId", null);
   }
 
   // Turns an open note into a locked one. The browser sends the note already
@@ -172,6 +220,8 @@ export class NoteRoom extends YServer {
     this.sql`INSERT INTO log (iv, ct) VALUES (${m.iv}, ${m.ct})`;
     this.legacyHtml = null;
     this.legacyOfferedTo = null;
+    // A read-only link would need the password too, so locking ends it.
+    await this.dropViewLink();
 
     // Everyone reconnects: the one who locked it with the key, the rest to the
     // password screen.
@@ -271,7 +321,8 @@ export class NoteRoom extends YServer {
   // GET /parties/note-room/:id tells the app whether to ask for a password.
   onRequest(request) {
     if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
-    if (!this.isLocked()) return Response.json({ locked: false });
+    // The read-only link's id goes only to people who already have the edit link.
+    if (!this.isLocked()) return Response.json({ locked: false, viewId: this.meta("viewId") });
     return Response.json({
       locked: true,
       salt: this.meta("salt"),

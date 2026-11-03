@@ -44,9 +44,10 @@ export function captureOnce(event, id, props = {}) {
   capture(event, props);
 }
 
-// A note's URL (/<id>) is all it takes to read and edit it, so the id never
+// A note's URL (/<id>, or /v/<id> to read it) is all it takes to open it, so the id never
 // leaves the browser: note paths are reported as "/:id".
 function maskPath(path) {
+  if (/^\/v\/[^/]+$/.test(path)) return "/v/:id";
   return /^\/[^/]+$/.test(path) ? "/:id" : path;
 }
 

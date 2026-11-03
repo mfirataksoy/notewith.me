@@ -13,6 +13,7 @@ const router = createRouter({
     { path: "/", component: Home },
     // Bundled, not lazy: almost every visit lands here, and a chunk that fails
     // to load on a phone left the whole page blank.
+    { path: "/v/:viewId", component: Note, props: true },
     { path: "/:id", component: Note, props: true },
   ],
 });

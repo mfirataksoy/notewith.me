@@ -11,7 +11,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy:worker": "wrangler deploy",
-    "test:realtime": "node test/realtime.test.mjs"
+    "test:realtime": "node test/realtime.test.mjs",
+    "test:viewlink": "node test/viewlink.test.mjs"
   },
   "dependencies": {
     "@tiptap/core": "^3.32.2",
@@ -20,6 +21,7 @@
     "@tiptap/extension-highlight": "^3.32.2",
     "@tiptap/extension-list": "^3.32.2",
     "@tiptap/extensions": "^3.32.2",
+    "@tiptap/markdown": "^3.32.2",
     "@tiptap/pm": "^3.32.2",
     "@tiptap/starter-kit": "^3.32.2",
     "@tiptap/vue-3": "^3.32.2",
@@ -30,6 +32,7 @@
     "partyserver": "^0.5.10",
     "partysocket": "^1.3.0",
     "posthog-js": "^1.444.0",
+    "uqr": "^0.1.3",
     "vue": "^3.5.44",
     "vue-router": "^4.6.4",
     "y-partyserver": "^2.2.0",
