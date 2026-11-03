@@ -117,8 +117,12 @@ if (process.env.EXPIRY_WAIT) {
   write(r2.doc, "short-lived");
   await wait(300);
   r2.provider.sendMessage(JSON.stringify({ t: "expire", at: Date.now() + 61_000 }));
-  const code = await new Promise((r) => r2.provider.on("connection-close", (e) => r(e && e.code)));
-  assert.equal(code, 4005, "the alarm deleted the note");
+  // The first close may be an abnormal one (1006) when the alarm runs; the
+  // provider reconnects and the room then answers 4005.
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("no 4005 after the alarm")), 100_000);
+    r2.provider.on("connection-close", (e) => e && e.code === 4005 && (clearTimeout(timer), resolve()));
+  });
   r2.provider.destroy();
   assert.deepEqual(await info(b), { deleted: true });
   console.log("alarm deleted the note");

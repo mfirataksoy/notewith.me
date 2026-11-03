@@ -252,6 +252,8 @@ export class NoteRoom extends YServer {
 
   async onAlarm() {
     const expiresAt = Number(this.meta("expiresAt") || 0);
+    // On Cloudflare the alarm can start after the room's sockets were dropped;
+    // browsers then reconnect and onConnect answers 4005.
     if (expiresAt && expiresAt <= Date.now() + 1000) await this.destroyNote();
   }
 

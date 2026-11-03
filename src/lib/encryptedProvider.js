@@ -46,9 +46,11 @@ export class EncryptedProvider {
       this.status("connecting");
       this.send({ t: "auth", key: keys.authKey, clientId: doc.clientID });
     });
-    this.socket.addEventListener("close", () => {
+    this.socket.addEventListener("close", (event) => {
       this.ready = false;
       this.status("disconnected");
+      // 4005: the note was deleted (also what a reconnect gets afterwards).
+      if (event.code === 4005 && this.callbacks.onMessage) this.callbacks.onMessage({ t: "expired" });
     });
     this.socket.addEventListener("message", (event) => {
       if (typeof event.data === "string" && event.data.startsWith(PREFIX)) {
