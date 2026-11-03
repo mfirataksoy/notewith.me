@@ -47,7 +47,9 @@ export async function uploadImage(file, { noteId, authKey }) {
     headers: authKey ? { "X-Note-Key": authKey } : {},
     body,
   });
-  if (response.status === 413) throw new Error("That image is too large, or this note has too many images.");
+  if (response.status === 413) throw new Error("That image is too large, or this note is full (50 MB of images).");
+  if (response.status === 429) throw new Error("Too many uploads at once. Wait a minute and try again.");
+  if (response.status === 507) throw new Error("Image uploads are paused right now. Please try again later.");
   if (!response.ok) throw new Error("Couldn't upload the image. Please try again.");
   const { id } = await response.json();
   const raw = toUrlSafe(toBase64(await crypto.subtle.exportKey("raw", key)));

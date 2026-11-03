@@ -35,6 +35,36 @@ async function routeView(request, env, viewId, cors) {
   return room.fetch(new Request(request.url, { method: request.method, headers }));
 }
 
+const UPLOADS_PER_HOUR = 40;
+
+async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Image uploads per visitor: at most 6 a minute (Cloudflare rate limiter) and
+// UPLOADS_PER_HOUR an hour. Returns a response when the visitor is over.
+async function limitUploads(request, env, cors) {
+  const ip = request.headers.get("CF-Connecting-IP") || "local";
+  const tooMany = () =>
+    Response.json({ error: "slow down" }, { status: 429, headers: { "Retry-After": "60", ...(cors || {}) } });
+  const { success } = await env.UPLOAD_LIMITER.limit({ key: ip });
+  if (!success) return tooMany();
+
+  const hour = Math.floor(Date.now() / 3600e3);
+  // The IP is only kept as a hash that changes every day.
+  const who = (await sha256Hex(`${ip}|${new Date().toISOString().slice(0, 10)}`)).slice(0, 32);
+  const n = await env.LEGACY_DB.prepare(
+    "INSERT INTO upload_counts (who, hour, n) VALUES (?1, ?2, 1) ON CONFLICT (who, hour) DO UPDATE SET n = n + 1 RETURNING n"
+  )
+    .bind(who, hour)
+    .first("n");
+  if (Math.random() < 0.02) {
+    await env.LEGACY_DB.prepare("DELETE FROM upload_counts WHERE hour < ?1").bind(hour - 48).run();
+  }
+  return n > UPLOADS_PER_HOUR ? tooMany() : null;
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
@@ -65,6 +95,10 @@ export default {
           ...(cors || {}),
         },
       });
+    }
+    if (request.method === "POST" && /^\/parties\/note-room\/[^/]+\/images$/.test(path)) {
+      const limited = await limitUploads(request, env, cors);
+      if (limited) return limited;
     }
     const view = path.match(/^\/view\/([A-Za-z0-9_-]{12,32})$/);
     if (view) {

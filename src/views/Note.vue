@@ -61,6 +61,7 @@
             <MoreMenu
               :readonly="readonly"
               :expires-at="expiresAt"
+              :note-url="readonly ? viewUrl : editUrl"
               @history="close(), (historyOpen = true)"
               @expire="(choice) => (close(), setExpiry(choice))"
               @export="(kind) => (exportNote(kind), close())"

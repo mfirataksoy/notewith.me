@@ -15,9 +15,10 @@ const MAX_VERSIONS = 50;
 // Self-destruct: from a minute to a year ahead.
 const MIN_EXPIRY_MS = 60 * 1000;
 const MAX_EXPIRY_MS = 366 * 24 * 60 * 60 * 1000;
-// Images: browsers shrink them first, so these are generous.
+// Images: browsers shrink them first (most are well under 1 MB).
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_IMAGES = 300;
+const MAX_NOTE_IMAGE_BYTES = 50 * 1024 * 1024;
+const MAX_IMAGES = 200;
 
 const isKey = (v) => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 const isCipher = (m) =>
@@ -272,6 +273,10 @@ export class NoteRoom extends YServer {
     this.sql`DELETE FROM versions`;
     const images = this.sql`SELECT id FROM images`.map((row) => row.id);
     for (let i = 0; i < images.length; i += 1000) await this.env.IMAGES.delete(images.slice(i, i + 1000));
+    const [{ bytes }] = this.sql`SELECT COALESCE(SUM(size), 0) AS bytes FROM images`;
+    if (bytes) {
+      await this.env.LEGACY_DB.prepare("UPDATE image_usage SET bytes = MAX(0, bytes - ?1) WHERE id = 1").bind(bytes).run();
+    }
     this.sql`DELETE FROM images`;
     this.sql`DELETE FROM meta`;
     this.setMeta("deleted", "1");
@@ -453,15 +458,23 @@ export class NoteRoom extends YServer {
       const check = await this.checkKey(request.headers.get("X-Note-Key"));
       if (!check.ok) return Response.json(check, { status: check.reason === "blocked" ? 429 : 401 });
     }
-    const [{ n }] = this.sql`SELECT COUNT(*) AS n FROM images`;
-    if (n >= MAX_IMAGES) return Response.json({ error: "too many images" }, { status: 413 });
     const body = await request.arrayBuffer();
-    if (!body.byteLength || body.byteLength > MAX_IMAGE_BYTES) {
-      return Response.json({ error: "too large" }, { status: 413 });
+    const size = body.byteLength;
+    if (!size || size > MAX_IMAGE_BYTES) return Response.json({ error: "too large" }, { status: 413 });
+    const [{ n, bytes }] = this.sql`SELECT COUNT(*) AS n, COALESCE(SUM(size), 0) AS bytes FROM images`;
+    if (n >= MAX_IMAGES || bytes + size > MAX_NOTE_IMAGE_BYTES) {
+      return Response.json({ error: "note full" }, { status: 413 });
     }
+    // One ceiling for every note together, so a flood of uploads can't run up a bill.
+    const usage = this.env.LEGACY_DB;
+    const total = (await usage.prepare("SELECT bytes FROM image_usage WHERE id = 1").first("bytes")) || 0;
+    const ceiling = Number(this.env.IMAGE_STORAGE_GB || 5) * 1024 ** 3;
+    if (total + size > ceiling) return Response.json({ error: "storage full" }, { status: 507 });
+
     const id = newViewId();
     await this.env.IMAGES.put(id, body);
-    this.sql`INSERT INTO images (id, size, at) VALUES (${id}, ${body.byteLength}, ${Date.now()})`;
+    this.sql`INSERT INTO images (id, size, at) VALUES (${id}, ${size}, ${Date.now()})`;
+    await usage.prepare("UPDATE image_usage SET bytes = bytes + ?1 WHERE id = 1").bind(size).run();
     return Response.json({ id });
   }
 

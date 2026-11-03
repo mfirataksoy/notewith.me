@@ -14,7 +14,8 @@
     "test:realtime": "node test/realtime.test.mjs",
     "test:viewlink": "node test/viewlink.test.mjs",
     "test:history": "node test/history.test.mjs",
-    "test:images": "node test/images.test.mjs"
+    "test:images": "node test/images.test.mjs",
+    "test:limits": "node test/limits.test.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

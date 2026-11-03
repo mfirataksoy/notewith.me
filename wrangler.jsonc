@@ -19,8 +19,12 @@
   ],
   // Images, encrypted in the browser with a key that lives only in the note.
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "noteful-images" }],
+  // Uploads per visitor (IP) per minute; worker/index.js adds an hourly cap.
+  "ratelimits": [{ "name": "UPLOAD_LIMITER", "namespace_id": "1001", "simple": { "limit": 6, "period": 60 } }],
   "vars": {
     // Comma-separated origins allowed besides the built-in list in worker/index.js.
-    "EXTRA_ORIGINS": ""
+    "EXTRA_ORIGINS": "",
+    // Ceiling for all images together; uploads stop past it.
+    "IMAGE_STORAGE_GB": "5"
   }
 }

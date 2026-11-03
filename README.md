@@ -50,6 +50,11 @@ it says.
   (`noteful-image:<id>#k=…`), so the server never sees an image, and for locked
   notes the address is encrypted with the rest of the note. Deleting a note
   deletes its images.
+- **Abuse limits:** 6 uploads a minute per visitor (Workers rate limiting) and
+  40 an hour (D1 `upload_counts`, keyed by a daily hash of the IP, pruned after
+  48 h); 8 MB per image and 50 MB per note; all images together stop at
+  `IMAGE_STORAGE_GB` (D1 `image_usage`). *Report abuse* (footer and the ⋯ menu)
+  mails a note's link, which is enough to open and delete it.
 - **Comments:** select text and press *Comment* (or ⌘⌥M). Threads live in the
   note's Yjs document, so they sync live, are encrypted with locked notes and
   are part of version history; the commented text carries a `comment` mark.
@@ -98,6 +103,8 @@ To try the import of old notes, apply the D1 schema locally
 `notes` with `npx wrangler d1 execute noteful-legacy --local --command "..."`.
 
 With the Worker running, `npm run test:images` checks image uploads,
+`npm run test:limits` the upload limits (`STORAGE_CHECK=1` with a tiny
+`IMAGE_STORAGE_GB` in `.dev.vars` checks the ceiling),
 `npm run test:history` checks version history and
 self-destruct (`EXPIRY_WAIT=1` also waits for a real alarm), `npm run test:viewlink`
 checks read-only links and
@@ -108,7 +115,7 @@ wrong passwords.
 ## Deploy
 
 1. New D1 tables first: `npx wrangler d1 migrations apply noteful-legacy --remote`
-   (the database also holds `view_links`). The R2 bucket `noteful-images` must
+   (the database also holds `view_links`, `upload_counts` and `image_usage`). The R2 bucket `noteful-images` must
    exist (`npx wrangler r2 bucket create noteful-images`).
 2. `npm run deploy:worker` publishes the Worker to `live.noteful.me` (host set
    in `.env.production`). Deploy it first when a change touches both.

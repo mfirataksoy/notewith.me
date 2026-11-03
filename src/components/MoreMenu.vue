@@ -42,16 +42,23 @@
       </label>
       <p>It's added at the end of the note.</p>
     </template>
+
+    <a class="more__item more__report" :href="abuseReportHref(noteUrl)">
+      <Flag :size="16" /> Report abuse
+    </a>
   </div>
 </template>
 
 <script setup>
 import { computed } from "vue";
-import { FileCode, FileText, FileType, History, Printer, Timer, Trash2, Upload } from "lucide-vue-next";
+import { FileCode, FileText, FileType, Flag, History, Printer, Timer, Trash2, Upload } from "lucide-vue-next";
+import { abuseReportHref } from "../lib/abuse";
 
 const props = defineProps({
   readonly: Boolean,
   expiresAt: { type: Number, default: null },
+  // The link a report should point to (read-only links report themselves).
+  noteUrl: { type: String, default: "" },
 });
 const emit = defineEmits(["export", "print", "import", "history", "expire"]);
 
@@ -90,6 +97,11 @@ h3 {
   color: var(--ink);
   font: inherit;
   font-size: 13px;
+}
+.more__report {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  text-decoration: none;
 }
 .more__danger {
   color: var(--danger);
