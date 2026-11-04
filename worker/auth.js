@@ -5,7 +5,7 @@ const KEYS = createRemoteJWKSet(
   new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
 );
 
-// Returns { uid, email } for a valid Firebase ID token in the Authorization
+// Returns { uid, email } for a valid Firebase ID token with a verified email in the Authorization
 // header, or null. With FIREBASE_AUTH_EMULATOR set (local dev only), the
 // emulator's unsigned tokens are accepted after the same claim checks.
 export async function signedInUser(request, env) {
@@ -27,6 +27,10 @@ export async function signedInUser(request, env) {
       }));
     }
     if (!claims.sub) return null;
+    // Google and email-link accounts have a checked email. Password sign-up is
+    // on only because Firebase needs it for email links; those accounts (made
+    // straight through the API, unverified) get no AI messages.
+    if (claims.email_verified !== true) return null;
     return { uid: claims.sub, email: claims.email || "" };
   } catch {
     return null;

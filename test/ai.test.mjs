@@ -9,13 +9,29 @@ import assert from "node:assert/strict";
 const worker = `http://${process.env.PARTY_HOST || "127.0.0.1:8787"}`;
 const emulator = `http://${process.env.FIREBASE_AUTH_EMULATOR || "127.0.0.1:9099"}`;
 
-const signUp = await fetch(`${emulator}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=test`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email: `t${Date.now()}@example.com`, password: "test-only-123", returnSecureToken: true }),
-}).then((r) => r.json());
-assert.ok(signUp.idToken, "emulator gave a token");
-const auth = { Authorization: `Bearer ${signUp.idToken}` };
+const api = (path, body) =>
+  fetch(`${emulator}/identitytoolkit.googleapis.com/v1/${path}?key=test`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => r.json());
+
+// A password account made straight through the API has no verified email.
+const unverified = await api("accounts:signUp", { email: `p${Date.now()}@example.com`, password: "test-only-123", returnSecureToken: true });
+assert.equal(
+  (await fetch(`${worker}/ai/usage`, { headers: { Authorization: `Bearer ${unverified.idToken}` } })).status,
+  401,
+  "unverified accounts are refused"
+);
+
+// An email-link sign-in, the way the app does it.
+const email = `t${Date.now()}@example.com`;
+await api("accounts:sendOobCode", { requestType: "EMAIL_SIGNIN", email, continueUrl: "http://localhost/", canHandleCodeInApp: true });
+const codes = await fetch(`${emulator}/emulator/v1/projects/notefulme/oobCodes`).then((r) => r.json());
+const { oobCode } = codes.oobCodes.filter((c) => c.email === email).at(-1);
+const signIn = await api("accounts:signInWithEmailLink", { email, oobCode });
+assert.ok(signIn.idToken, "emulator gave a token");
+const auth = { Authorization: `Bearer ${signIn.idToken}` };
 const ask = (body, headers = auth) =>
   fetch(`${worker}/ai`, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
