@@ -15,9 +15,11 @@
     "test:viewlink": "node test/viewlink.test.mjs",
     "test:history": "node test/history.test.mjs",
     "test:images": "node test/images.test.mjs",
-    "test:limits": "node test/limits.test.mjs"
+    "test:limits": "node test/limits.test.mjs",
+    "test:ai": "node test/ai.test.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@floating-ui/dom": "^1.8.0",
     "@tiptap/core": "^3.32.2",
     "@tiptap/extension-bubble-menu": "^3.32.2",
@@ -35,6 +37,8 @@
     "@tiptap/suggestion": "^3.32.2",
     "@tiptap/vue-3": "^3.32.2",
     "@tiptap/y-tiptap": "^3.0.12",
+    "firebase": "^13.2.0",
+    "jose": "^6.2.15",
     "lucide-vue-next": "^1.0.0",
     "mongoose": "^8.9.0",
     "nanoid": "^5.1.6",
@@ -59,6 +63,8 @@
     "esbuild": true,
     "workerd": true,
     "core-js": false,
-    "fsevents": false
+    "fsevents": false,
+    "@firebase/util": false,
+    "protobufjs": false
   }
 }

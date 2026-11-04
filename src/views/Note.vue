@@ -15,6 +15,17 @@
         <button
           v-if="phase === 'editor'"
           type="button"
+          class="btn btn--icon"
+          :class="{ 'is-on': aiOpen }"
+          title="AI help"
+          aria-label="AI help"
+          @click="aiOpen = !aiOpen"
+        >
+          <Sparkles :size="16" />
+        </button>
+        <button
+          v-if="phase === 'editor'"
+          type="button"
           class="btn btn--icon comments-btn"
           :class="{ 'is-on': commentsOpen }"
           :title="`Comments (${openThreadCount})`"
@@ -144,6 +155,16 @@
       @focus="focusThread"
     />
 
+    <AiPanel
+      :open="aiOpen && phase === 'editor'"
+      :locked="locked"
+      :readonly="readonly"
+      :context="aiContext"
+      :append="(markdown) => editor && editor.appendMarkdown(markdown)"
+      :replace-range="(range, markdown) => !!editor && editor.replaceRange(range, markdown)"
+      @close="aiOpen = false"
+    />
+
     <HistoryPanel
       v-model="historyOpen"
       :locked="locked"
@@ -166,7 +187,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onErrorCaptured, ref, shallowRef, watch } from "vue";
 import * as Y from "yjs";
-import { Ellipsis, Eye, ImagePlus, Link2, Lock, LockOpen, MessageSquare, NotebookText, Timer } from "lucide-vue-next";
+import { Ellipsis, Eye, ImagePlus, Link2, Lock, LockOpen, MessageSquare, NotebookText, Sparkles, Timer } from "lucide-vue-next";
 import NoteEditor from "../components/NoteEditor.vue";
 import PresenceBar from "../components/PresenceBar.vue";
 import LockDialog from "../components/LockDialog.vue";
@@ -178,6 +199,7 @@ import NotesMenu from "../components/NotesMenu.vue";
 import MoreMenu from "../components/MoreMenu.vue";
 import HistoryPanel from "../components/HistoryPanel.vue";
 import CommentsPanel from "../components/CommentsPanel.vue";
+import AiPanel from "../components/AiPanel.vue";
 import { addThread, deleteThread, message, newThreadId, reply, setResolved, watchThreads } from "../lib/comments";
 import { uploadImage } from "../lib/images";
 import { fetchNoteInfo, openProvider, viewLinkWorks, viewProvider } from "../lib/party";
@@ -622,6 +644,13 @@ function noteDeleted() {
 // ---- comments ----
 
 const commentsOpen = ref(false);
+// AI help and comments share the right side, so one closes the other.
+const aiOpen = ref(false);
+watch(aiOpen, (open) => open && (commentsOpen.value = false));
+watch(commentsOpen, (open) => open && (aiOpen.value = false));
+function aiContext() {
+  return editor.value ? { note: editor.value.markdown(), selection: editor.value.selection() } : { note: "", selection: null };
+}
 const threads = ref([]);
 const activeThread = ref("");
 // { from, to, quote } while a new comment is being written.
@@ -843,6 +872,24 @@ onBeforeUnmount(() => {
 .banner.banner--warn {
   background: color-mix(in srgb, var(--warn) 16%, transparent);
   color: var(--ink);
+}
+/* Phones: every header button fits on one row (brand, status, people, six buttons). */
+@media (max-width: 420px) {
+  .top {
+    gap: 8px !important;
+    padding: 10px 12px !important;
+  }
+  .brand {
+    font-size: 17px;
+  }
+  .top__right {
+    gap: 3px !important;
+  }
+  .top__right :deep(.btn) {
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
 }
 @media (max-width: 600px) {
   .top {
