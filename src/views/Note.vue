@@ -15,13 +15,14 @@
         <button
           v-if="phase === 'editor'"
           type="button"
-          class="btn btn--icon"
+          class="btn ai-btn"
           :class="{ 'is-on': aiOpen }"
-          title="AI help"
+          title="AI help: summarize, to-do list, fix, translate"
           aria-label="AI help"
           @click="aiOpen = !aiOpen"
         >
           <Sparkles :size="16" />
+          <span class="ai-label">Ask AI</span>
         </button>
         <button
           v-if="phase === 'editor'"
@@ -851,6 +852,17 @@ onBeforeUnmount(() => {
 .comments-btn {
   position: relative;
 }
+/* The one coloured button: AI help is easy to miss among the icons. */
+.ai-btn {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.ai-btn:hover,
+.ai-btn.is-on {
+  border-color: var(--accent);
+}
 .comments-btn.is-on {
   color: var(--accent);
   border-color: var(--accent);
@@ -900,6 +912,7 @@ onBeforeUnmount(() => {
     gap: 8px;
   }
   .status__label,
+  .ai-label,
   .share-label {
     display: none;
   }
