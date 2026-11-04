@@ -30,6 +30,10 @@ export default defineConfig({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/kvkk/],
         maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+        // A new version takes over at once (and the page reloads, see main.js)
+        // instead of waiting until every noteful tab is closed.
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
