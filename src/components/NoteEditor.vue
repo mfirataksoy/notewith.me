@@ -179,6 +179,19 @@ defineExpose({
     });
     if (range) editor.value.chain().focus().setTextSelection(range).scrollIntoView().run();
   },
+  // The selected text and where it is, for the AI help ({ from, to, text } or null).
+  selection() {
+    const { from, to, empty } = editor.value.state.selection;
+    if (empty) return null;
+    return { from, to, text: editor.value.state.doc.textBetween(from, to, "\n\n") };
+  },
+  // Puts Markdown in place of a range, if that range still holds the same text.
+  replaceRange({ from, to, text }, markdown) {
+    const { doc } = editor.value.state;
+    if (to > doc.content.size || doc.textBetween(from, to, "\n\n") !== text) return false;
+    editor.value.chain().focus().insertContentAt({ from, to }, markdown, { contentType: "markdown" }).run();
+    return true;
+  },
   // Adds imported Markdown at the end, so nothing anyone wrote is replaced.
   appendMarkdown(markdown) {
     const end = editor.value.state.doc.content.size;

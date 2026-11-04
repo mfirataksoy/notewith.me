@@ -87,6 +87,22 @@ The lock icon puts a password on a note. Everything happens in the browser
 - A forgotten password can't be recovered. Removing the password sends the
   decrypted document back so the room stores it readable again.
 
+## AI help and accounts
+
+The sparkles button opens AI help: summarize, to-do list, fix writing, continue,
+translate (EN/TR), or ask about the note. Answers stream in and can be added to
+the note, put in place of the selection, or copied.
+
+- Notes never need an account; AI help does, so it can't be drained anonymously.
+  Sign-in is Firebase Auth (project `notefulme`): Google or an email link.
+  The SDK loads only for people who open the panel or were signed in before
+  (`src/lib/auth.js`).
+- The Worker checks the Firebase ID token (`worker/auth.js`), counts messages in
+  D1 (`ai_usage`: 20 per account per day, `AI_DAILY_TOTAL` for everyone) and
+  streams Claude Haiku (`worker/ai.js`). A failed call gives the message back.
+- Locked notes are never sent: the panel is off for them. Image addresses are
+  stripped from the text first, since they carry the image keys.
+
 ## Run it locally
 
 Needs Node 22.12 or newer.
@@ -96,6 +112,14 @@ npm install
 npm run dev:worker   # the realtime Worker on http://localhost:8787
 npm run dev          # the app on http://localhost:5173
 ```
+
+For AI help, put `ANTHROPIC_API_KEY=…` and
+`FIREBASE_AUTH_EMULATOR=127.0.0.1:9199` in `.dev.vars`,
+`VITE_FIREBASE_AUTH_EMULATOR=127.0.0.1:9199` in `.env.development.local`, and run
+the Auth emulator (`firebase emulators:start --only auth --project notefulme`
+with the auth port set to 9199). `npm run test:ai` signs up an emulator account
+and checks the endpoint (start the Worker with
+`--var AI_DAILY_PER_ACCOUNT:2` to see the daily limit cut in).
 
 To try the import of old notes, apply the D1 schema locally
 (`npx wrangler d1 migrations apply noteful-legacy --local`) and insert a row into
@@ -114,9 +138,12 @@ wrong passwords.
 ## Deploy
 
 1. New D1 tables first: `npx wrangler d1 migrations apply noteful-legacy --remote`
-   (the database also holds `view_links`, `upload_counts` and `image_usage`). The R2 bucket `noteful-images` must
+   (the database also holds `view_links`, `upload_counts`, `image_usage` and `ai_usage`). The R2 bucket `noteful-images` must
    exist (`npx wrangler r2 bucket create noteful-images`).
-2. `npm run deploy:worker` publishes the Worker to `live.noteful.me` (host set
+2. The Anthropic key is a Worker secret: `npx wrangler secret put ANTHROPIC_API_KEY`.
+   In Firebase (console → Authentication), Google and Email link sign-in must be
+   on and `noteful.me` must be an authorized domain.
+3. `npm run deploy:worker` publishes the Worker to `live.noteful.me` (host set
    in `.env.production`). Deploy it first when a change touches both.
-3. Cloudflare Pages builds the app from `main` with `npm run build` (output
+4. Cloudflare Pages builds the app from `main` with `npm run build` (output
    `dist/`). The SPA fallback needs no config: there is no `404.html`.

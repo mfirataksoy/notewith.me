@@ -4,6 +4,7 @@ import App from "./App.vue";
 import Home from "./views/Home.vue";
 import Note from "./views/Note.vue";
 import { initAnalytics } from "./lib/analytics";
+import { startAuth } from "./lib/auth";
 import { isChunkError, reportError } from "./lib/crash";
 import { registerSW } from "virtual:pwa-register";
 import "./style.css";
@@ -37,6 +38,9 @@ router.onError((error) => {
 
 // Off in dev and for browsers opted out with ?notrack (see lib/analytics.js).
 initAnalytics().catch((error) => reportError(error, "analytics"));
+
+// Finishes an email sign-in link; loads Firebase only for people who use accounts.
+startAuth().catch((error) => reportError(error, "auth"));
 
 const app = createApp(App);
 app.config.errorHandler = (error, _instance, info) => reportError(error, `vue:${info}`, true);

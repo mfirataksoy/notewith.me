@@ -1,4 +1,5 @@
 import { getServerByName, routePartykitRequest } from "partyserver";
+import { handleAi } from "./ai.js";
 
 export { NoteRoom } from "./room.js";
 
@@ -82,7 +83,8 @@ export default {
       ? {
           "Access-Control-Allow-Origin": origin,
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, X-Note-Key",
+          "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Note-Key",
+          "Access-Control-Expose-Headers": "X-AI-Left",
           Vary: "Origin",
         }
       : false;
@@ -104,6 +106,10 @@ export default {
     if (request.method === "POST" && /^\/parties\/note-room\/[^/]+\/images$/.test(path)) {
       const limited = await limitUploads(request, env, cors);
       if (limited) return limited;
+    }
+    if (path === "/ai" || path === "/ai/usage") {
+      if (request.method === "OPTIONS") return new Response(null, { headers: cors || {} });
+      return handleAi(request, env, cors || {});
     }
     const view = path.match(/^\/view\/([A-Za-z0-9_-]{12,32})$/);
     if (view) {
