@@ -1,7 +1,6 @@
 <template>
   <div v-if="open" class="overlay" @click.self="close" @keydown.esc="close">
     <div class="history" role="dialog" aria-modal="true" aria-label="Version history">
-      <!-- Actions sit at the top: the chat button covers the bottom-right corner. -->
       <header class="history__head">
         <h2>Version history</h2>
         <div class="history__actions">

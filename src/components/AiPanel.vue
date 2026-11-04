@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { CheckSquare, Languages, ListCollapse, Lock, PenLine, SpellCheck, Sparkles, X } from "lucide-vue-next";
 import * as auth from "../lib/auth";
 import { account } from "../lib/auth";
@@ -250,15 +250,6 @@ watch(
   () => props.open,
   (open) => !open && controller && controller.abort()
 );
-
-// The site-wide chat bubble (mfirataksoy.com/chat/widget.js) sits over the
-// panel's buttons; it steps aside while the panel is open.
-function chatBubble(hidden) {
-  const bubble = document.getElementById("firat-chat");
-  if (bubble) bubble.style.display = hidden ? "none" : "";
-}
-watch(() => props.open, chatBubble, { immediate: true });
-onBeforeUnmount(() => chatBubble(false));
 </script>
 
 <style scoped>
