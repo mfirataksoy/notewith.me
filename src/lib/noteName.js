@@ -2,19 +2,41 @@ import { nanoid } from "nanoid";
 import { fetchNoteInfo } from "./party";
 
 // The home page opens a note at a random address. The note page then offers to
-// pick a name instead; this remembers which address was random (in memory, so a
-// reload or a shared link never shows the offer).
+// pick a name instead. The random id is kept for this tab only (sessionStorage),
+// so the offer survives the reload a new app version triggers, but a shared
+// link or another tab never shows it.
+const FRESH = "nwm-fresh";
+
+function store(value) {
+  try {
+    if (value) sessionStorage.setItem(FRESH, value);
+    else sessionStorage.removeItem(FRESH);
+  } catch {
+    // Private mode: the offer just doesn't survive a reload.
+  }
+}
+
 let freshId = null;
 
 export function newRandomNote() {
   freshId = nanoid(6);
+  store(freshId);
   return freshId;
 }
 
-export function takeFresh(id) {
-  const fresh = id === freshId;
-  if (fresh) freshId = null;
-  return fresh;
+export function isFresh(id) {
+  if (id === freshId) return true;
+  try {
+    return sessionStorage.getItem(FRESH) === id;
+  } catch {
+    return false;
+  }
+}
+
+// Once the person has answered (picked a name or kept the random one).
+export function freshDone() {
+  freshId = null;
+  store(null);
 }
 
 // Paths the site itself uses (static pages, built files, read-only links).

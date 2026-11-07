@@ -214,7 +214,7 @@ import { ITERATIONS, decryptBytes, deriveKeys, encryptBytes, fromBase64, newSalt
 import { loadUser, saveUser } from "../lib/identity";
 import { capture, captureOnce } from "../lib/analytics";
 import { reportError } from "../lib/crash";
-import { takeFresh } from "../lib/noteName";
+import { freshDone, isFresh } from "../lib/noteName";
 import { useRouter } from "vue-router";
 
 // /<id> opens a note to edit; /v/<viewId> opens it through a read-only link.
@@ -244,7 +244,7 @@ let pendingLegacy = null;
 const lockDialog = ref(false);
 // Offered once, on a note the home page just opened at a random address.
 const router = useRouter();
-const nameDialog = ref(!props.viewId && takeFresh(props.id));
+const nameDialog = ref(!props.viewId && isFresh(props.id));
 const busy = ref(false);
 const lockError = ref("");
 // Self-destruct time (ms) or null, and the history panel.
@@ -539,11 +539,13 @@ function useName(name) {
   forgetNote(notePath.value);
   dropLocalCopy(props.id);
   capture("note_named");
+  freshDone();
   router.replace(`/${name}`);
 }
 
 function keepRandomName() {
   capture("note_name_skipped");
+  freshDone();
   if (editor.value) editor.value.focus();
 }
 
