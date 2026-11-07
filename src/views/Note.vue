@@ -781,6 +781,11 @@ function rename(name) {
 }
 
 function onEdit() {
+  // Writing in the random note answers the naming offer: it keeps its address.
+  if (nameDialog.value) {
+    nameDialog.value = false;
+    freshDone();
+  }
   captureOnce("note_first_edit", props.id, { locked: locked.value });
   keepEncryptedVersion();
 }

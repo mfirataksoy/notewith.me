@@ -1,61 +1,73 @@
 <template>
-  <div v-if="open" class="overlay" @click.self="keep" @keydown.esc="keep">
-    <form class="dialog" role="dialog" aria-modal="true" aria-labelledby="name-title" @submit.prevent="use">
-      <h2 id="name-title">Give this note a name?</h2>
-      <p>
-        It opened at a random address, <strong>{{ host }}/{{ currentId }}</strong>.
-        A name is easier to remember and share.
-      </p>
-      <label class="name">
-        <span class="name__host">{{ host }}/</span>
-        <input
-          ref="input"
-          :value="name"
-          :placeholder="example"
-          :maxlength="MAX_NAME"
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck="false"
-          aria-label="Note name"
-          @input="onInput"
-        />
-      </label>
+  <Transition name="drop">
+    <form
+      v-if="open"
+      class="chat"
+      role="dialog"
+      aria-labelledby="name-title"
+      @submit.prevent="use"
+      @keydown.esc="keep"
+    >
+      <img class="chat__avatar" src="/favicon-32x32.png" alt="" width="32" height="32" />
+      <div class="chat__body">
+        <p class="chat__from">noteful.me</p>
+        <div class="bubble">
+          <p id="name-title">
+            Hi! This note opened at a random address, <strong>{{ host }}/{{ currentId }}</strong>.
+            Want a name you can remember? Type one below.
+          </p>
+        </div>
 
-      <p class="state" aria-live="polite">
-        <template v-if="problem">
-          <span class="bad">{{ problem }}</span>
-        </template>
-        <template v-else-if="state === 'checking'">Checking…</template>
-        <template v-else-if="state === 'free'">
-          <Check :size="15" class="good" /> <span class="good">{{ host }}/{{ checked }} is free.</span>
-        </template>
-        <template v-else-if="state === 'taken'">
-          <span class="bad">{{ checked }} is taken.</span>
-          <template v-if="suggestions.length">
-            Try
-            <button v-for="s in suggestions" :key="s" type="button" class="chip" @click="pick(s)">{{ s }}</button>
+        <label class="name">
+          <span class="name__host">{{ host }}/</span>
+          <input
+            ref="input"
+            :value="name"
+            :placeholder="example"
+            :maxlength="MAX_NAME"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-label="Note name"
+            @input="onInput"
+          />
+          <button type="submit" class="send" :disabled="state !== 'free' || !!problem" aria-label="Use this name">
+            <ArrowUp :size="16" />
+          </button>
+        </label>
+
+        <p class="state" aria-live="polite">
+          <template v-if="problem">
+            <span class="bad">{{ problem }}</span>
           </template>
-          <template v-else>Try another name.</template>
-        </template>
-        <template v-else-if="state === 'error'">
-          <span class="bad">Can't check names right now.</span>
-        </template>
-        <template v-else>&nbsp;</template>
-      </p>
+          <template v-else-if="state === 'checking'">Checking…</template>
+          <template v-else-if="state === 'free'">
+            <Check :size="14" class="good" /> <span class="good">{{ checked }} is free. Press Enter to use it.</span>
+          </template>
+          <template v-else-if="state === 'taken'">
+            <span class="bad">{{ checked }} is taken.</span>
+            <template v-if="suggestions.length">
+              Try
+              <button v-for="s in suggestions" :key="s" type="button" class="chip" @click="pick(s)">{{ s }}</button>
+            </template>
+            <template v-else>Try another name.</template>
+          </template>
+          <template v-else-if="state === 'error'">
+            <span class="bad">Can't check names right now.</span>
+          </template>
+          <template v-else>Anyone who knows the name can open the note, so keep private notes random or locked.</template>
+        </p>
 
-      <p class="hint">Anyone who knows the name can open the note. For private notes, keep the random address or lock the note with a password.</p>
-
-      <div class="actions">
-        <button type="button" class="btn" @click="keep">Keep the random one</button>
-        <button type="submit" class="btn btn--primary" :disabled="state !== 'free' || !!problem">Use this name</button>
+        <button type="button" class="keep" @click="keep">No thanks, keep the random one</button>
       </div>
+      <button type="button" class="close" aria-label="Close" @click="keep"><X :size="16" /></button>
     </form>
-  </div>
+  </Transition>
 </template>
 
 <script setup>
 import { nextTick, ref, watch } from "vue";
-import { Check } from "lucide-vue-next";
+import { ArrowUp, Check, X } from "lucide-vue-next";
 import { MAX_NAME, cleanName, exampleName, finishName, freeNamesLike, nameProblem, nameTaken } from "../lib/noteName";
 
 const open = defineModel({ type: Boolean });
@@ -144,41 +156,77 @@ function keep() {
 </script>
 
 <style scoped>
-.overlay {
+.chat {
   position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: rgb(0 0 0 / 0.35);
-}
-.dialog {
-  width: min(460px, 100%);
-  padding: 22px;
-  border-radius: 14px;
+  top: 64px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  gap: 10px;
+  width: min(440px, calc(100vw - 24px));
+  padding: 14px 14px 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
   background: var(--bg);
   box-shadow: var(--shadow);
+  transform: translateX(-50%);
 }
-h2 {
-  margin: 0 0 8px;
-  font-size: 19px;
+.drop-enter-active,
+.drop-leave-active {
+  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2), opacity 0.25s ease;
 }
-p {
-  margin: 0 0 14px;
-  color: var(--ink-soft);
-  font-size: 15px;
+.drop-enter-from,
+.drop-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -24px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-enter-active,
+  .drop-leave-active {
+    transition: opacity 0.2s ease;
+  }
+  .drop-enter-from,
+  .drop-leave-to {
+    transform: translateX(-50%);
+  }
+}
+.chat__avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.chat__body {
+  flex: 1;
+  min-width: 0;
+}
+.chat__from {
+  margin: 2px 0 4px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.bubble {
+  padding: 9px 12px;
+  border-radius: 4px 14px 14px 14px;
+  background: var(--surface);
+}
+.bubble p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
 }
 strong {
-  color: var(--ink);
   font-weight: 600;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 .name {
   display: flex;
   align-items: center;
+  margin-top: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--bg);
   overflow: hidden;
 }
@@ -187,30 +235,49 @@ strong {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .name__host {
-  padding: 10px 0 10px 12px;
+  padding: 8px 0 8px 14px;
   color: var(--ink-soft);
-  font-size: 15px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .name input {
   flex: 1;
   min-width: 0;
-  padding: 10px 12px 10px 1px;
+  padding: 8px 6px 8px 1px;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
+}
+.send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.send:disabled {
+  background: var(--line);
+  color: var(--ink-soft);
+  cursor: default;
 }
 .state {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  min-height: 28px;
-  margin: 8px 0 10px;
-  font-size: 14px;
+  min-height: 22px;
+  margin: 8px 2px 4px;
+  color: var(--ink-soft);
+  font-size: 13px;
 }
 .good {
   color: var(--ok);
@@ -219,7 +286,7 @@ strong {
   color: var(--danger);
 }
 .chip {
-  padding: 3px 10px;
+  padding: 2px 10px;
   border: 1px solid var(--accent);
   border-radius: 999px;
   background: var(--accent-soft);
@@ -228,13 +295,30 @@ strong {
   font-size: 13px;
   cursor: pointer;
 }
-.hint {
+.keep {
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
   font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
 }
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
+.close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -4px 0 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.close:hover {
+  background: var(--surface);
 }
 </style>
