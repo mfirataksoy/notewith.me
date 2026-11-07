@@ -56,6 +56,11 @@ const newViewId = () =>
  */
 export class NoteRoom extends YServer {
   static callbackOptions = { debounceWait: 1000, debounceMaxWait: 5000 };
+  // Idle sockets don't keep the room awake (Cloudflare bills Durable Objects by
+  // the time they are awake, and an open tab used to keep its room up all day).
+  // Connection state lives in socket attachments; legacyHtml, legacyOfferedTo
+  // and compactAskedAt are rebuilt or harmlessly reset when the room wakes.
+  static options = { hibernate: true };
 
   // ---- storage helpers ----
 
@@ -164,6 +169,10 @@ export class NoteRoom extends YServer {
     super.onClose(conn, code, reason, wasClean);
     if (this.legacyOfferedTo === conn.id && this.isEmpty()) {
       this.legacyOfferedTo = null;
+    }
+    // The last one out saves now rather than after the debounce.
+    if (![...this.getConnections()].some((c) => c !== conn)) {
+      this.onSave().catch((error) => console.error("save on close failed", error));
     }
   }
 
