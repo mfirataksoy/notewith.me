@@ -49,6 +49,8 @@ const props = defineProps({
   user: { type: Object, required: true },
   // Read-only links show the note live but don't let you type.
   readonly: Boolean,
+  // Off while a dialog on top wants the keyboard.
+  noAutofocus: Boolean,
   // (file) => Promise<src>: encrypts and uploads an image.
   uploadImage: { type: Function, default: null },
 });
@@ -121,7 +123,7 @@ const editor = useEditor({
     },
   },
   editable: !props.readonly,
-  autofocus: !props.readonly,
+  autofocus: !props.readonly && !props.noAutofocus,
   onCreate: () => emit("ready"),
   onUpdate: ({ transaction }) => {
     const sync = transaction.getMeta(ySyncPluginKey);
@@ -136,6 +138,9 @@ watch(
 );
 
 defineExpose({
+  focus() {
+    if (editor.value) editor.value.commands.focus();
+  },
   // Imports a note written before the realtime editor (HTML from MongoDB).
   setContentIfEmpty(html) {
     if (editor.value && editor.value.isEmpty) editor.value.commands.setContent(html);

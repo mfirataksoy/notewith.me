@@ -496,7 +496,11 @@ export class NoteRoom extends YServer {
     if (this.isDeleted()) return Response.json({ deleted: true });
     const expiresAt = Number(this.meta("expiresAt") || 0) || null;
     // The read-only link's id goes only to people who already have the edit link.
-    if (!this.isLocked()) return Response.json({ locked: false, viewId: this.meta("viewId"), expiresAt });
+    // `used` tells the "name your note" dialog whether this name already has a note.
+    if (!this.isLocked()) {
+      const used = !this.isEmpty() || !!this.legacyHtml;
+      return Response.json({ locked: false, used, viewId: this.meta("viewId"), expiresAt });
+    }
     return Response.json({
       locked: true,
       salt: this.meta("salt"),

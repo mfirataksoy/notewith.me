@@ -128,6 +128,7 @@
         :provider="provider"
         :user="user"
         :readonly="readonly"
+        :no-autofocus="nameDialog"
         :upload-image="uploadNoteImage"
         @ready="onEditorReady"
         @comment="startComment"
@@ -181,6 +182,8 @@
       @lock="lockNote"
       @remove="removePassword"
     />
+
+    <NameDialog v-if="!readonly" v-model="nameDialog" :current-id="id" @choose="useName" @keep="keepRandomName" />
   </div>
 </template>
 
@@ -191,6 +194,7 @@ import { Ellipsis, Eye, ImagePlus, Link2, Lock, LockOpen, MessageSquare, Noteboo
 import NoteEditor from "../components/NoteEditor.vue";
 import PresenceBar from "../components/PresenceBar.vue";
 import LockDialog from "../components/LockDialog.vue";
+import NameDialog from "../components/NameDialog.vue";
 import UnlockCard from "../components/UnlockCard.vue";
 import AppFooter from "../components/AppFooter.vue";
 import DropMenu from "../components/DropMenu.vue";
@@ -210,6 +214,8 @@ import { ITERATIONS, decryptBytes, deriveKeys, encryptBytes, fromBase64, newSalt
 import { loadUser, saveUser } from "../lib/identity";
 import { capture, captureOnce } from "../lib/analytics";
 import { reportError } from "../lib/crash";
+import { takeFresh } from "../lib/noteName";
+import { useRouter } from "vue-router";
 
 // /<id> opens a note to edit; /v/<viewId> opens it through a read-only link.
 const props = defineProps({
@@ -236,6 +242,9 @@ let pendingLock = null;
 let pendingLegacy = null;
 
 const lockDialog = ref(false);
+// Offered once, on a note the home page just opened at a random address.
+const router = useRouter();
+const nameDialog = ref(!props.viewId && takeFresh(props.id));
 const busy = ref(false);
 const lockError = ref("");
 // Self-destruct time (ms) or null, and the history panel.
@@ -523,6 +532,19 @@ async function lockNote(password) {
     busy.value = false;
     lockError.value = "The server didn't answer. Check your connection and try again.";
   }, 10000);
+}
+
+function useName(name) {
+  // The random note is still empty: drop it from "Your notes" and move on.
+  forgetNote(notePath.value);
+  dropLocalCopy(props.id);
+  capture("note_named");
+  router.replace(`/${name}`);
+}
+
+function keepRandomName() {
+  capture("note_name_skipped");
+  if (editor.value) editor.value.focus();
 }
 
 function removePassword() {

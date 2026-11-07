@@ -3,11 +3,12 @@
 </template>
 
 <script setup>
-import { nanoid } from "nanoid";
 import { useRouter } from "vue-router";
 import { capture } from "../lib/analytics";
+import { newRandomNote } from "../lib/noteName";
 
 // A note exists as soon as someone types in it; until then it's just a URL.
+// The note page then offers to swap the random address for a name.
 capture("note_created");
-useRouter().replace(`/${nanoid(6)}`);
+useRouter().replace(`/${newRandomNote()}`);
 </script>
