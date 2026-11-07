@@ -163,8 +163,13 @@
       :context="aiContext"
       :append="(markdown) => editor && editor.appendMarkdown(markdown)"
       :replace-range="(range, markdown) => !!editor && editor.replaceRange(range, markdown)"
-      @close="aiOpen = false"
-    />
+      :greeting="nameDialog"
+      @close="closeAi"
+    >
+      <template #greeting>
+        <NameChat :current-id="id" @choose="useName" @keep="keepRandomName" />
+      </template>
+    </AiPanel>
 
     <HistoryPanel
       v-model="historyOpen"
@@ -182,8 +187,6 @@
       @lock="lockNote"
       @remove="removePassword"
     />
-
-    <NameDialog v-if="!readonly" v-model="nameDialog" :current-id="id" @choose="useName" @keep="keepRandomName" />
   </div>
 </template>
 
@@ -194,7 +197,7 @@ import { Ellipsis, Eye, ImagePlus, Link2, Lock, LockOpen, MessageSquare, Noteboo
 import NoteEditor from "../components/NoteEditor.vue";
 import PresenceBar from "../components/PresenceBar.vue";
 import LockDialog from "../components/LockDialog.vue";
-import NameDialog from "../components/NameDialog.vue";
+import NameChat from "../components/NameChat.vue";
 import UnlockCard from "../components/UnlockCard.vue";
 import AppFooter from "../components/AppFooter.vue";
 import DropMenu from "../components/DropMenu.vue";
@@ -242,7 +245,8 @@ let pendingLock = null;
 let pendingLegacy = null;
 
 const lockDialog = ref(false);
-// Offered once, on a note the home page just opened at a random address.
+// Offered once, on a note the home page just opened at a random address: the
+// AI panel opens with a message from noteful.me about naming it.
 const router = useRouter();
 const nameDialog = ref(!props.viewId && isFresh(props.id));
 const busy = ref(false);
@@ -540,13 +544,23 @@ function useName(name) {
   dropLocalCopy(props.id);
   capture("note_named");
   freshDone();
+  nameDialog.value = false;
+  aiOpen.value = false;
   router.replace(`/${name}`);
 }
 
 function keepRandomName() {
   capture("note_name_skipped");
   freshDone();
+  nameDialog.value = false;
+  // The panel opened only for this message.
+  aiOpen.value = false;
   if (editor.value) editor.value.focus();
+}
+
+function closeAi() {
+  if (nameDialog.value) keepRandomName();
+  else aiOpen.value = false;
 }
 
 function removePassword() {
@@ -669,9 +683,11 @@ function noteDeleted() {
 
 const commentsOpen = ref(false);
 // AI help and comments share the right side, so one closes the other.
-const aiOpen = ref(false);
+const aiOpen = ref(nameDialog.value);
 watch(aiOpen, (open) => open && (commentsOpen.value = false));
 watch(commentsOpen, (open) => open && (aiOpen.value = false));
+// Closing the panel any way (button, comments) answers the naming message too.
+watch(aiOpen, (open) => !open && nameDialog.value && keepRandomName());
 function aiContext() {
   return editor.value ? { note: editor.value.markdown(), selection: editor.value.selection() } : { note: "", selection: null };
 }
@@ -784,6 +800,7 @@ function onEdit() {
   // Writing in the random note answers the naming offer: it keeps its address.
   if (nameDialog.value) {
     nameDialog.value = false;
+    aiOpen.value = false;
     freshDone();
   }
   captureOnce("note_first_edit", props.id, { locked: locked.value });

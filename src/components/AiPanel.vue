@@ -7,7 +7,13 @@
       </button>
     </header>
 
-    <p v-if="!account.ready" class="ai__note">Loading…</p>
+    <!-- A message from noteful.me (naming a new note) comes first, before any AI. -->
+    <template v-if="greeting">
+      <slot name="greeting" />
+      <p class="ai__note">This panel is also where AI help lives: summaries, to-do lists, fixes and translations.</p>
+    </template>
+
+    <p v-else-if="!account.ready" class="ai__note">Loading…</p>
 
     <!-- Signed out -->
     <section v-else-if="!account.user" class="ai__signin">
@@ -98,6 +104,8 @@ const ON_SELECTION = new Set(["fix", "translate-en", "translate-tr"]);
 
 const props = defineProps({
   open: Boolean,
+  // Shows the #greeting slot instead of AI help (and doesn't load sign-in).
+  greeting: Boolean,
   locked: Boolean,
   readonly: Boolean,
   // () => { note: markdown, selection: { from, to, text } | null }
@@ -138,13 +146,13 @@ async function refreshUsage() {
 }
 
 watch(
-  () => props.open,
-  (open) => open && auth.wakeAuth(),
+  () => props.open && !props.greeting,
+  (show) => show && auth.wakeAuth(),
   { immediate: true }
 );
 watch(
-  () => [props.open, account.user && account.user.uid],
-  ([open, uid]) => open && uid && refreshUsage(),
+  () => [props.open && !props.greeting, account.user && account.user.uid],
+  ([show, uid]) => show && uid && refreshUsage(),
   { immediate: true }
 );
 
