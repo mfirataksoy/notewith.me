@@ -5,6 +5,7 @@ import Home from "./views/Home.vue";
 import Note from "./views/Note.vue";
 import { initAnalytics } from "./lib/analytics";
 import { startAuth } from "./lib/auth";
+import { setCanonical } from "./lib/canonical";
 import { isChunkError, reportError } from "./lib/crash";
 import { registerSW } from "virtual:pwa-register";
 import "./style.css";
@@ -30,6 +31,8 @@ function reloadOnce() {
   location.reload();
   return true;
 }
+
+router.afterEach((to) => setCanonical(to.path));
 
 router.onError((error) => {
   if (isChunkError(error) && reloadOnce()) return;
